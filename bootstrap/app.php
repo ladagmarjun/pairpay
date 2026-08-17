@@ -17,6 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
+        // CI calls this with a bearer-style token and no session, so there is
+        // no CSRF token to present. Its own token check is the gate.
+        $middleware->validateCsrfTokens(except: ['deploy-hook']);
+
         $middleware->web(append: [
             HandleAppearance::class,
             HandleInertiaRequests::class,

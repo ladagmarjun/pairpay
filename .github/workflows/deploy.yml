@@ -1,0 +1,143 @@
+name: deploy
+
+# Namecheap shared hosting has no Node and no Composer worth relying on, so the
+# build happens here and only the finished artefact is shipped. See
+# docs/DEPLOYMENT.md for the one-time cPanel setup this expects.
+
+# Chained off the test suite rather than off the push itself: triggering both on
+# `push` would race them, and a red build would deploy anyway.
+on:
+  workflow_run:
+    workflows: ['tests']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Never let two deploys overlap: a half-uploaded vendor/ directory is a broken
+# site. A newer push waits rather than cancelling, so main always lands.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    # A manual run deploys whatever is on main; an automatic one only proceeds
+    # if the tests it followed actually passed.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    env:
+      # Lifted here so the final step's `if` can test it — step-level `if`
+      # cannot read the `secrets` context, only `env`.
+      DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # workflow_run defaults to the default branch's tip; pin to the exact
+          # commit the tests ran against so a fast follow-up push cannot slip an
+          # untested commit into this deploy.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      # --no-dev is what keeps PHPUnit, Pint and PHPStan off the server.
+      - name: Install PHP dependencies
+        run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+
+      - name: Build assets
+        run: |
+          npm ci
+          npm run build
+
+      # The server never runs artisan, so anything cacheable is baked in here.
+      # Config is deliberately NOT cached: it would freeze this runner's empty
+      # .env into the artefact and override the real one on the server.
+      - name: Cache routes and views
+        run: |
+          php artisan route:cache
+          php artisan view:cache
+
+      - name: Verify the build produced assets
+        run: test -f public/build/manifest.json || (echo "::error::public/build/manifest.json missing — the Vite build did not run" && exit 1)
+
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      # lftp rather than a marketplace action: this step handles the FTP
+      # password, and every other action in this repo is SHA-pinned precisely so
+      # that credentials are never passed to code we have not pinned.
+      #
+      # Note there is no --delete. Removed files linger on the server, which is
+      # untidy; the alternative risks deleting .env or storage/ if an exclude
+      # pattern is ever wrong, and on shared hosting that is a bad afternoon.
+      # See docs/DEPLOYMENT.md for how to prune vendor/ deliberately.
+      - name: Deploy over FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+          LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          lftp -c "
+            set ftp:ssl-force true;
+            set ftp:ssl-protect-data true;
+            set ssl:verify-certificate true;
+            set net:max-retries 3;
+            set net:timeout 20;
+            open --user \"\$FTP_USERNAME\" --env-password \"\$FTP_SERVER\";
+            mirror --reverse --verbose --parallel=4 \
+              --exclude-glob .git/ \
+              --exclude-glob .github/ \
+              --exclude-glob node_modules/ \
+              --exclude-glob tests/ \
+              --exclude-glob docs/ \
+              --exclude-glob storage/ \
+              --exclude-glob .env \
+              --exclude-glob .env.* \
+              --exclude-glob *.sqlite \
+              --exclude-glob *.md \
+              --exclude-glob phpunit.xml \
+              --exclude-glob phpstan.neon \
+              --exclude-glob pint.json \
+              --exclude-glob eslint.config.js \
+              --exclude-glob .prettier* \
+              --exclude-glob .editorconfig \
+              ./ \"\$FTP_SERVER_DIR\";
+          "
+
+      # `secrets` is not available to a step-level `if`, so the URL is lifted
+      # into the job env (below) and the condition tests that instead. Skipped
+      # entirely if you finish deploys over SSH.
+      - name: Run migrations and refresh caches
+        if: ${{ env.DEPLOY_HOOK_URL != '' }}
+        env:
+          DEPLOY_HOOK_TOKEN: ${{ secrets.DEPLOY_HOOK_TOKEN }}
+        run: |
+          code=$(curl -sS --max-time 120 -o /tmp/hook.txt -w '%{http_code}' \
+            -X POST "$DEPLOY_HOOK_URL" \
+            -H "X-Deploy-Token: $DEPLOY_HOOK_TOKEN")
+          cat /tmp/hook.txt
+          echo
+          test "$code" = "200" || {
+            echo "::error::Deploy hook returned $code. Files are uploaded but migrations may not have run."
+            exit 1
+          }

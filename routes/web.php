@@ -3,10 +3,17 @@
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\DeployController;
 use App\Http\Controllers\ExpenseController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
+
+// Finishes a deploy on hosting where CI cannot run artisan. 404s unless
+// DEPLOY_HOOK_TOKEN is set — see docs/DEPLOYMENT.md.
+Route::post('deploy-hook', DeployController::class)
+    ->middleware('throttle:5,1')
+    ->name('deploy.hook');
 
 Route::middleware('guest')->group(function () {
     Route::get('auth/google/redirect', [GoogleAuthController::class, 'redirect'])
