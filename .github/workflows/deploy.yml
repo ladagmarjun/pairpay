@@ -113,6 +113,13 @@ jobs:
       # untidy; the alternative risks deleting .env or storage/ if an exclude
       # pattern is ever wrong, and on shared hosting that is a bad afternoon.
       # See docs/DEPLOYMENT.md for how to prune vendor/ deliberately.
+      #
+      # storage/ IS uploaded, deliberately. Laravel cannot boot without that
+      # directory tree, and the deploy hook cannot create it because Laravel has
+      # to boot in order to serve the hook. The repo only carries the skeleton
+      # (.gitignore files), and without --delete nothing already on the server
+      # is removed — so server-side logs and uploads survive. Only *.log is
+      # skipped, so a build-time log never clobbers the production one.
       - name: Deploy over FTPS
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
@@ -166,10 +173,11 @@ jobs:
               --no-perms \
               --exclude-glob .git/ \
               --exclude-glob .github/ \
+              --exclude-glob .claude/ \
               --exclude-glob node_modules/ \
               --exclude-glob tests/ \
               --exclude-glob docs/ \
-              --exclude-glob storage/ \
+              --exclude-glob *.log \
               --exclude-glob .env \
               --exclude-glob .env.* \
               --exclude-glob *.sqlite \
@@ -182,6 +190,46 @@ jobs:
               --exclude-glob .editorconfig \
               ./ \"$FTP_SERVER_DIR\";
           "
+
+      # Without --verbose the upload is nearly silent, so a wrong FTP_SERVER_DIR
+      # looks exactly like a successful deploy: green tick, no output, no files
+      # where you expected them. This turns that into a definite answer, and
+      # names the likely cause when it fails.
+      - name: Verify the files landed
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+          LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_CHECK_HOSTNAME: ${{ vars.FTP_CHECK_HOSTNAME || 'yes' }}
+        run: |
+          echo "Listing what is actually in $FTP_SERVER_DIR on the server:"
+          lftp -c "
+            set ftp:ssl-force true;
+            set ssl:verify-certificate true;
+            set ssl:check-hostname $FTP_CHECK_HOSTNAME;
+            open --user \"$FTP_USERNAME\" --env-password \"$FTP_SERVER\";
+            cls -l \"$FTP_SERVER_DIR\";
+          " | tee /tmp/remote.txt
+
+          missing=""
+          for path in artisan public/index.php public/build/manifest.json vendor/autoload.php; do
+            found=$(lftp -c "
+              set ftp:ssl-force true;
+              set ssl:verify-certificate true;
+              set ssl:check-hostname $FTP_CHECK_HOSTNAME;
+              open --user \"$FTP_USERNAME\" --env-password \"$FTP_SERVER\";
+              cls \"$FTP_SERVER_DIR/$path\";
+            " 2>/dev/null || true)
+            if [ -z "$found" ]; then missing="$missing $path"; else echo "ok: $path"; fi
+          done
+
+          if [ -n "$missing" ]; then
+            echo "::error::Uploaded, but these are not where expected:$missing"
+            echo "::error::FTP_SERVER_DIR is currently '$FTP_SERVER_DIR'. It is relative to the FTP user's home, not an absolute server path. If the account is rooted at /home/USER, use '/pairpay/'; if it is rooted at the app folder itself, use '/'. The listing above shows where the files went."
+            exit 1
+          fi
+          echo "All key files are present on the server."
 
       # `secrets` is not available to a step-level `if`, so the URL is lifted
       # into the job env (below) and the condition tests that instead. Skipped

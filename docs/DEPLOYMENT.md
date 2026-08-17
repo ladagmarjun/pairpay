@@ -19,12 +19,24 @@ cPanel → **Domains** → **Create A New Domain**:
 | Field | Value |
 | --- | --- |
 | Domain | `app.yourdomain.com` |
-| Document Root | `/home/USER/pairpay/public` |
+| Document Root | `/home/USER/app.yourdomain.com/public` |
 
-Untick "Share document root". cPanel will create `/home/USER/pairpay/public` —
-the app itself goes in `/home/USER/pairpay`, one level **above** the web root.
+Untick "Share document root".
 
-Verify afterwards that `https://app.yourdomain.com/.env` returns 404, not a file.
+**cPanel's default is wrong for Laravel.** Left alone it sets the document root
+to the subdomain folder itself — `/home/USER/app.yourdomain.com` — and if the
+app is deployed there, then `config/`, `vendor/`, `database/` and eventually
+`.env` are all served over HTTP. Append `/public` so the app root sits one level
+above the web root.
+
+You can tell which you have by looking in the folder: cPanel creates
+`.well-known` and `cgi-bin` inside whatever it considers the document root.
+
+To fix an existing subdomain, cPanel → **Domains** → the domain → edit
+**Document Root** and append `/public`. Nothing needs re-uploading.
+
+Verify afterwards that `https://app.yourdomain.com/.env` returns 404, not a
+file, and that `/up` responds.
 
 ### 2. PHP version
 
@@ -46,7 +58,7 @@ MySQL is the safer default on shared hosting.
 
 ### 4. `.env` on the server
 
-Create `/home/USER/pairpay/.env` through **File Manager**. It is deliberately
+Create `/home/USER/app.yourdomain.com/.env` through **File Manager**. It is deliberately
 never deployed — CI would overwrite it, and it holds every secret you have.
 
 ```dotenv
@@ -118,17 +130,17 @@ HTTP, so the session never sticks.
 | `FTP_SERVER` | `ftp.yourdomain.com` |
 | `FTP_USERNAME` | the full FTP user, usually `deploy@yourdomain.com` |
 | `FTP_PASSWORD` | its password |
-| `FTP_SERVER_DIR` | `/pairpay/` — relative to the FTP user's home |
+| `FTP_SERVER_DIR` | `/app.yourdomain.com/` — relative to the FTP user's home |
 | `DEPLOY_HOOK_URL` | `https://app.yourdomain.com/deploy-hook` (optional) |
 | `DEPLOY_HOOK_TOKEN` | the same value as the server's (optional) |
 
 Create a **dedicated FTP account** (cPanel → FTP Accounts) rooted at
-`/home/USER/pairpay` rather than reusing your cPanel login. If the credential
+`/home/USER/app.yourdomain.com` rather than reusing your cPanel login. If the credential
 leaks, it reaches one directory instead of your whole account.
 
 `FTP_SERVER_DIR` is relative to that FTP user's home. If the account is rooted
 at the app directory, `/` is correct; if it is rooted at `/home/USER`, use
-`/pairpay/`. Getting this wrong uploads the app one level off, which shows up as
+`/app.yourdomain.com/`. Getting this wrong uploads the app one level off, which shows up as
 a blank page or a directory listing.
 
 ## Finishing the deploy
@@ -138,7 +150,7 @@ Files land, but migrations still need running and caches rebuilding. Pick one:
 **SSH** (Stellar Plus and above) — the clean option:
 
 ```bash
-cd ~/pairpay && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan storage:link
+cd ~/app.yourdomain.com && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan storage:link
 ```
 
 **The deploy hook** — for plans without SSH. Set `DEPLOY_HOOK_TOKEN` in both the
@@ -198,7 +210,7 @@ server and let the next deploy repopulate it.
 
 **Scheduled tasks.** Nothing currently needs the scheduler. If that changes, add
 a cPanel cron job at one-minute intervals:
-`/usr/local/bin/php /home/USER/pairpay/artisan schedule:run >/dev/null 2>&1`
+`/usr/local/bin/php /home/USER/app.yourdomain.com/artisan schedule:run >/dev/null 2>&1`
 
 **Queues.** `QUEUE_CONNECTION=database` with no worker means jobs queue and never
 run. Nothing queues work today; if that changes, run
