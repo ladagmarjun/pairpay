@@ -1,0 +1,11 @@
+{
+    "version": "0.0.1",
+    "configurations": [
+        {
+            "name": "pairpay",
+            "runtimeExecutable": "C:\\Users\\Marjun Ladag\\.config\\herd\\bin\\php.bat",
+            "runtimeArgs": ["artisan", "serve", "--port=8123"],
+            "port": 8123
+        }
+    ]
+}
