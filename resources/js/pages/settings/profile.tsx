@@ -15,8 +15,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { edit } from '@/routes/profile';
-import type { Auth } from '@/types';
 import { send } from '@/routes/verification';
+import type { Auth } from '@/types';
 
 type PageProps = {
     auth: Auth;
