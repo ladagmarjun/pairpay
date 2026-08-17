@@ -171,6 +171,17 @@ real error is in `storage/logs/laravel.log`.
 
 ## Things that will bite you
 
+**`certificate common name doesn't match requested host name`.** Namecheap
+issues the FTP certificate for the *server* hostname, not your domain. Set
+`FTP_SERVER` to the server hostname — cPanel → **General Information** →
+**Current Server**, something like `server215.web-hosting.com`. That is the
+right fix, and keeps verification fully on.
+
+Only if that still mismatches, add a repository **variable** (not a secret)
+`FTP_CHECK_HOSTNAME` = `no`. That relaxes the name check alone; the certificate
+must still be validly issued by a trusted CA, and the transfer stays encrypted.
+There is deliberately no switch for turning verification off altogether.
+
 **"Re-run jobs" does not pick up workflow fixes.** Re-running a failed run
 replays the *original commit*, workflow file included — so a fix you just pushed
 is not in it. After changing anything under `.github/workflows/`, start a fresh

@@ -120,6 +120,25 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
           LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          # Shared hosting often presents a certificate for the SERVER hostname
+          # (serverNNN.web-hosting.com) rather than for your domain, so
+          # connecting as ftp.yourdomain.com fails the name check. Prefer
+          # setting FTP_SERVER to the server hostname so this stays 'yes'.
+          #
+          # Setting the repo variable FTP_CHECK_HOSTNAME to 'no' relaxes only
+          # the NAME match — `ssl:verify-certificate` above stays on, so the
+          # certificate must still be validly issued by a trusted CA and the
+          # transfer is still encrypted. That is a far smaller concession than
+          # switching verification off wholesale, which is why there is no
+          # switch for doing that.
+          FTP_CHECK_HOSTNAME: ${{ vars.FTP_CHECK_HOSTNAME || 'yes' }}
+          # Concurrent transfers. The cost of this upload is per-file overhead
+          # across ~11k files (vendor/ is 97% of them), so parallelism is the
+          # lever that matters. Namecheap shared hosting generally allows 8
+          # simultaneous FTP connections per IP; going higher tends to get
+          # connections refused rather than going faster. Override with the
+          # FTP_PARALLEL repo variable if your plan differs.
+          FTP_PARALLEL: ${{ vars.FTP_PARALLEL || '8' }}
         run: |
           # The host, user and target path are expanded by bash BEFORE lftp
           # sees them — lftp does not read shell variables, so escaping these as
@@ -131,10 +150,20 @@ jobs:
             set ftp:ssl-force true;
             set ftp:ssl-protect-data true;
             set ssl:verify-certificate true;
+            set ssl:check-hostname $FTP_CHECK_HOSTNAME;
             set net:max-retries 3;
             set net:timeout 20;
+            # MLSD gives machine-readable listings in one pass; without it lftp
+            # falls back to parsing LIST output, which is slower and has to
+            # guess at timestamps. With ~11k files in vendor/ that adds up.
+            set ftp:use-mlsd true;
+            # Keep connections alive between files. The cost here is per-file
+            # TLS handshakes, not bandwidth, so reuse is what actually helps.
+            set net:persist-retries 3;
+            set ftp:ssl-allow-anonymous false;
             open --user \"$FTP_USERNAME\" --env-password \"$FTP_SERVER\";
-            mirror --reverse --verbose --parallel=4 \
+            mirror --reverse --parallel=$FTP_PARALLEL \
+              --no-perms \
               --exclude-glob .git/ \
               --exclude-glob .github/ \
               --exclude-glob node_modules/ \
