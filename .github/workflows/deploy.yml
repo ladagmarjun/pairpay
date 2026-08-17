@@ -103,6 +103,15 @@ jobs:
               echo "::error::FTP_SERVER must be a bare hostname such as ftp.example.com, with no protocol prefix."
               exit 1 ;;
           esac
+
+          # FTP_SERVER_DIR is relative to the FTP user's home. An absolute
+          # server path silently nests a duplicate — /home/user/home/user/app —
+          # which uploads fine, reports success, and serves nothing.
+          case "$FTP_SERVER_DIR" in
+            /home/*|/home2/*|/usr/*|/var/*)
+              echo "::error::FTP_SERVER_DIR looks like an absolute server path ('$FTP_SERVER_DIR'). It is relative to the FTP account's own home directory. If that account is rooted at /home/USER, use '/yoursubdomain.com/'; if it is rooted at the app folder itself, use '/'. Leaving it absolute nests a duplicate copy inside your home directory."
+              exit 1 ;;
+          esac
           echo "All four FTP secrets are present."
 
       # lftp rather than a marketplace action: this step handles the FTP
