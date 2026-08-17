@@ -81,6 +81,30 @@ jobs:
       - name: Install lftp
         run: sudo apt-get update && sudo apt-get install -y lftp
 
+      # A missing secret otherwise surfaces as a confusing DNS failure from
+      # lftp, minutes into the job. Fail here instead, saying which one.
+      - name: Check the FTP secrets are set
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: |
+          missing=""
+          for name in FTP_SERVER FTP_USERNAME FTP_PASSWORD FTP_SERVER_DIR; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing — add them under Settings → Environments → production. See docs/DEPLOYMENT.md"
+            exit 1
+          fi
+          case "$FTP_SERVER" in
+            ftp://*|ftps://*|sftp://*)
+              echo "::error::FTP_SERVER must be a bare hostname such as ftp.example.com, with no protocol prefix."
+              exit 1 ;;
+          esac
+          echo "All four FTP secrets are present."
+
       # lftp rather than a marketplace action: this step handles the FTP
       # password, and every other action in this repo is SHA-pinned precisely so
       # that credentials are never passed to code we have not pinned.
@@ -97,13 +121,19 @@ jobs:
           FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
           LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
+          # The host, user and target path are expanded by bash BEFORE lftp
+          # sees them — lftp does not read shell variables, so escaping these as
+          # \$VAR would hand it the literal text and it would try to resolve a
+          # host called "$FTP_SERVER". The password is the exception: it stays
+          # in the environment and lftp reads it itself via --env-password, so
+          # it never appears in a command line or a process listing.
           lftp -c "
             set ftp:ssl-force true;
             set ftp:ssl-protect-data true;
             set ssl:verify-certificate true;
             set net:max-retries 3;
             set net:timeout 20;
-            open --user \"\$FTP_USERNAME\" --env-password \"\$FTP_SERVER\";
+            open --user \"$FTP_USERNAME\" --env-password \"$FTP_SERVER\";
             mirror --reverse --verbose --parallel=4 \
               --exclude-glob .git/ \
               --exclude-glob .github/ \
@@ -121,7 +151,7 @@ jobs:
               --exclude-glob eslint.config.js \
               --exclude-glob .prettier* \
               --exclude-glob .editorconfig \
-              ./ \"\$FTP_SERVER_DIR\";
+              ./ \"$FTP_SERVER_DIR\";
           "
 
       # `secrets` is not available to a step-level `if`, so the URL is lifted
