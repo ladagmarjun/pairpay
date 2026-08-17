@@ -40,11 +40,31 @@ file, and that `/up` responds.
 
 ### 2. PHP version
 
-cPanel → **Select PHP Version** → **8.3** or newer (`composer.json` requires
-`^8.3`). Enable these extensions if they are not already on: `bcmath`, `ctype`,
-`curl`, `dom`, `fileinfo`, `mbstring`, `openssl`, `pdo_mysql`, `tokenizer`,
-`xml`, `zip`. `curl` and `openssl` are not optional here — every Firebase call
-goes through them.
+cPanel → **Software** → **Select PHP Version** → **8.3** or newer
+(`composer.json` requires `^8.3`).
+
+**This is set per-domain.** Use the domain dropdown at the top of that page and
+select the subdomain, not just the main domain — otherwise the subdomain keeps
+the account default and you get:
+
+    Composer detected issues in your platform:
+    Your Composer dependencies require a PHP version ">= 8.3.0"
+
+That message comes from `vendor/autoload.php`, which refuses to load rather than
+failing in stranger ways later.
+
+Enable these extensions if they are not already on: `bcmath`, `ctype`, `curl`,
+`dom`, `fileinfo`, `mbstring`, `openssl`, `pdo_mysql`, `tokenizer`, `xml`,
+`zip`. `curl` and `openssl` are not optional here — every Firebase call goes
+through them, so without them logins fail even on a correct PHP version.
+
+**The CLI is a separate binary.** `php` on the command line or in a cron job may
+still be an old version even after the web one is switched. Use the versioned
+path for anything scripted:
+
+    /opt/alt/php83/usr/bin/php artisan migrate --force
+
+`which php` will not tell you this — check `php -v` explicitly before assuming.
 
 ### 3. Database
 
