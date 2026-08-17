@@ -4,7 +4,7 @@ Namecheap shared hosting is cPanel with no root, no Node, and no supervisor.
 That shapes everything below: **GitHub Actions builds, the server only serves.**
 Composer and npm never run on the host.
 
-    push to main → Actions: composer --no-dev + vite build → FTPS upload → deploy hook
+    push to master → Actions: composer --no-dev + vite build → FTPS upload → deploy hook
 
 ## One-time: cPanel
 
@@ -170,6 +170,15 @@ If you see a 500 with no detail, that is `APP_DEBUG=false` doing its job. The
 real error is in `storage/logs/laravel.log`.
 
 ## Things that will bite you
+
+**"Re-run jobs" does not pick up workflow fixes.** Re-running a failed run
+replays the *original commit*, workflow file included — so a fix you just pushed
+is not in it. After changing anything under `.github/workflows/`, start a fresh
+run: **Actions → deploy → Run workflow**, or push a new commit.
+
+**Both workflows are keyed to `master`.** If you ever rename the default branch,
+change `branches:` in `tests.yml` and `deploy.yml` together — `deploy` is
+chained to `tests` by name, so a mismatch silently means neither ever fires.
 
 **Stale files.** The upload has no `--delete`, deliberately — the alternative
 risks deleting `.env` or `storage/` if an exclude pattern is ever wrong. Removed

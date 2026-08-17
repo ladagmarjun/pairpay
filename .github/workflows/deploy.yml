@@ -10,7 +10,7 @@ on:
   workflow_run:
     workflows: ['tests']
     types: [completed]
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 
 # Never let two deploys overlap: a half-uploaded vendor/ directory is a broken
