@@ -24,6 +24,15 @@ export default function Login({ status, canResetPassword }: Props) {
         <>
             <Head title="Log in" />
 
+            {/* Above the form, not below it: this says things like "your
+                password has been reset", which you need before you type, not
+                after you have scrolled past the button. */}
+            {status && (
+                <div className="mb-6 rounded-md bg-primary-container px-4 py-3 text-center text-sm font-medium text-primary-container-foreground">
+                    {status}
+                </div>
+            )}
+
             <PasskeyVerify />
 
             <GoogleButton tabIndex={6} />
@@ -107,12 +116,6 @@ export default function Login({ status, canResetPassword }: Props) {
                     </>
                 )}
             </Form>
-
-            {status && (
-                <div className="mb-4 text-center text-sm font-medium text-green-600">
-                    {status}
-                </div>
-            )}
         </>
     );
 }
