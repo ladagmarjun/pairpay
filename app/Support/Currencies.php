@@ -9,14 +9,14 @@ namespace App\Support;
  */
 final class Currencies
 {
-    public const DEFAULT = 'USD';
+    public const DEFAULT = 'PHP';
 
     /**
      * @var array<string, string>
      */
     private const SUPPORTED = [
-        'USD' => 'US Dollar',
         'PHP' => 'Philippine Peso',
+        'USD' => 'US Dollar',
         'EUR' => 'Euro',
         'GBP' => 'British Pound',
         'JPY' => 'Japanese Yen',

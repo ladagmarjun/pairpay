@@ -11,8 +11,8 @@ use App\Http\Requests\Expenses\StoreExpenseRequest;
 use App\Http\Requests\Expenses\UpdateExpenseRequest;
 use App\Models\Expense;
 use App\Support\ExpenseFilter;
+use App\Support\MonthInput;
 use App\Support\MonthlySummary;
-use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -32,7 +32,7 @@ class ExpenseController extends Controller
     {
         $user = $request->user();
         $filter = ExpenseFilter::fromRequest($request);
-        $month = $this->resolveMonth($request);
+        $month = MonthInput::fromRequest($request);
 
         $expenses = $user->expenses()
             ->filter($filter)
@@ -98,23 +98,6 @@ class ExpenseController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Expense deleted.')]);
 
         return back();
-    }
-
-    /**
-     * The month shown in the summary card, from `?month=YYYY-MM`. Anything
-     * unparseable falls back to the current month rather than erroring.
-     */
-    private function resolveMonth(Request $request): CarbonImmutable
-    {
-        $month = $request->string('month')->toString();
-
-        try {
-            return $month === ''
-                ? CarbonImmutable::now()->startOfMonth()
-                : CarbonImmutable::createFromFormat('Y-m', $month)->startOfMonth();
-        } catch (\Throwable) {
-            return CarbonImmutable::now()->startOfMonth();
-        }
     }
 
     /**

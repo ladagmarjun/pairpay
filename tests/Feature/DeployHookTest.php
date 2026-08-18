@@ -44,6 +44,8 @@ class DeployHookTest extends TestCase
     {
         config()->set('deploy.token', 'a-long-random-token');
 
+        $this->stubTheCacheBuilders();
+
         $this->postJson(route('deploy.hook'), [], ['X-Deploy-Token' => 'a-long-random-token'])
             ->assertOk()
             ->assertJson(['ok' => true])
@@ -53,6 +55,8 @@ class DeployHookTest extends TestCase
     public function test_a_failing_command_is_reported_rather_than_swallowed(): void
     {
         config()->set('deploy.token', 'a-long-random-token');
+
+        $this->stubTheCacheBuilders();
 
         Artisan::command('migrate', fn () => 1);
 
@@ -71,5 +75,19 @@ class DeployHookTest extends TestCase
 
         $this->postJson(route('deploy.hook'), [], ['X-Deploy-Token' => 'wrong'])
             ->assertTooManyRequests();
+    }
+
+    /**
+     * The cache builders write real files into `bootstrap/cache`, and a config
+     * cache built here would bake the testing environment -- sqlite on
+     * `:memory:` -- into every later request and artisan call, until someone
+     * ran `config:clear`. What this test is about is that the hook works
+     * through its list and reports what happened, so stub them.
+     */
+    private function stubTheCacheBuilders(): void
+    {
+        foreach (['config:cache', 'route:cache', 'view:cache', 'storage:link'] as $command) {
+            Artisan::command($command, fn () => 0);
+        }
     }
 }

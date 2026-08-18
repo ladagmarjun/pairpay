@@ -3,7 +3,11 @@
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\BillController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\LoanController;
+use App\Http\Controllers\LoanPaymentController;
+use App\Http\Controllers\LumpSumPaymentController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
@@ -42,21 +46,49 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::resource('expenses', ExpenseController::class)->except('show');
 
+    Route::resource('bills', BillController::class)->except('show');
+
+    // Paying is not editing the bill, it is writing the expense the bill
+    // becomes — so it gets its own verbs rather than a column on `update`.
+    Route::post('bills/{bill}/payment', [BillController::class, 'pay'])
+        ->name('bills.pay');
+
+    Route::delete('bills/{bill}/payment', [BillController::class, 'unpay'])
+        ->name('bills.unpay');
+
+    // One lump sum spread across several bills, oldest due first — the answer
+    // to having ₱1,100 against ₱1,500 of bills.
+    Route::post('bills-payment/allocate', [BillController::class, 'allocate'])
+        ->name('bills.allocate');
+
+    // `show` is kept here, unlike expenses and bills: a loan is a running
+    // balance with a history behind it, so it needs somewhere to live.
+    Route::resource('loans', LoanController::class);
+
+    // Payments belong to their loan and are authorized against it. The scoped
+    // binding is what stops a payment id from one loan being used on another.
+    Route::post('loans/{loan}/payments', [LoanPaymentController::class, 'store'])
+        ->name('loans.payments.store');
+
+    Route::delete('loans/{loan}/payments/{payment}', [LoanPaymentController::class, 'destroy'])
+        ->scopeBindings()
+        ->name('loans.payments.destroy');
+
+    // One lump sum spread across the loans you owe, most pressing first.
+    Route::post('loans-payment/allocate', [LoanController::class, 'allocate'])
+        ->name('loans.allocate');
+
+    // Pay day: one sum against bills and loans together, which neither
+    // module can answer on its own.
+    Route::get('pay', [LumpSumPaymentController::class, 'create'])
+        ->name('payments.create');
+
+    Route::post('pay', [LumpSumPaymentController::class, 'store'])
+        ->name('payments.store');
+
     // Destinations that exist in the navigation but ship in a later phase. Same
     // approach as the mobile app's `ComingSoon` tabs — the shape of the product
     // stays visible while the modules are built one at a time.
-    Route::inertia('bills', 'coming-soon', [
-        'title' => 'Bills',
-        'icon' => 'receipt-text',
-        'phase' => 'Arrives in Phase 3 — Fixed Monthly Expenses',
-    ])->name('bills');
-
-    Route::inertia('loans', 'coming-soon', [
-        'title' => 'Loans',
-        'icon' => 'landmark',
-        'phase' => 'Arrives in Phase 4 — Loan Management',
-    ])->name('loans');
-
     Route::inertia('shared', 'coming-soon', [
         'title' => 'Shared',
         'icon' => 'users',

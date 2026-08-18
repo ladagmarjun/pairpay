@@ -46,26 +46,39 @@ declared once, in PHP, and shipped to the client as props.
 ```
 app/
 ├─ Actions/Expenses/          # Write operations: Create / Update / DeleteExpense
+├─ Actions/Bills/             # Create / Update / DeleteBill, and Pay / UnpayBill
+├─ Actions/Loans/             # Create / Update / DeleteLoan, and the payments
+├─ Actions/Payments/          # AllocateLumpSum — bills and loans together
 ├─ Concerns/                  # Shared validation rules + attribute normalization
 ├─ Enums/                     # ExpenseCategory, PaymentMethod — label, color, icon
+│                             # BillStatus — paid / overdue / upcoming, derived
+│                             # LoanDirection, LoanStatus, InstallmentStatus
 ├─ Http/
-│  ├─ Controllers/ExpenseController.php
-│  └─ Requests/Expenses/      # StoreExpenseRequest, UpdateExpenseRequest
-├─ Models/                    # User, Expense
-├─ Policies/ExpensePolicy.php # Owner-only access
-└─ Support/                   # ExpenseFilter, MonthlySummary, Currencies
+│  ├─ Controllers/            # Expense, Bill, Loan, LoanPayment controllers
+│  ├─ Requests/Expenses/      # StoreExpenseRequest, UpdateExpenseRequest
+│  ├─ Requests/Bills/         # StoreBillRequest, UpdateBillRequest
+│  └─ Requests/Loans/         # Store/UpdateLoanRequest, StoreLoanPaymentRequest
+├─ Models/                    # User, Expense, Bill, Loan, LoanPayment
+├─ Policies/                  # Expense, Bill, Loan policies — owner-only access
+└─ Support/                   # ExpenseFilter, MonthlySummary, MonthInput,
+                              # LoanSchedule, Currencies
 
 resources/js/
 ├─ components/
 │  ├─ expenses/               # summary card, row, filter bar, form, delete dialog
+│  ├─ bills/                  # summary card, row, form, delete dialog
+│  ├─ loans/                  # summary card, row, status badge, forms, dialog
 │  ├─ dynamic-icon.tsx        # renders a Lucide icon by the name the server sent
 │  └─ ui/                     # shadcn primitives
 ├─ hooks/use-currency.ts      # the signed-in user's currency
 ├─ lib/format.ts              # currency + date formatting, one place
 ├─ lib/expense-meta.ts        # icon-name → component registry, option lookups
 ├─ pages/expenses/            # index, create, edit
+├─ pages/bills/               # index, create, edit
+├─ pages/loans/               # index, show, create, edit
+├─ pages/payments/            # lump-sum — pay day, across both modules
 ├─ pages/coming-soon.tsx      # later-phase destinations
-└─ types/expenses.ts          # wire types mirroring the server's shapes
+└─ types/                     # expenses.ts, bills.ts, loans.ts — wire types
 ```
 
 ## State: streams became the URL
@@ -137,7 +150,7 @@ It is idempotent, matching on `firebase_uid` first and email second, so running
 it twice updates rather than duplicates. Use `--dry-run` first.
 
 Note that Firestore's `users` documents also held `currencyCode`, which the Auth
-export does not include — imported accounts start at USD and can change it in
+export does not include — imported accounts start at PHP and can change it in
 profile settings.
 
 ## Firebase is the credential store
@@ -240,7 +253,168 @@ rather than theme.
 
 Amounts are stored `decimal(12,2)` and cast to `float` — exact in the database,
 JSON-friendly on the wire. Each user has a `currency_code` (set in profile
-settings, defaults to USD) and all formatting goes through `lib/format.ts`.
+settings, defaults to PHP) and all formatting goes through `lib/format.ts`.
+
+## Bills are templates, payments are expenses
+
+A bill is a *recurring definition* — name, amount, due date — and nothing more.
+It has no `paid` column. Marking one paid writes an ordinary row in `expenses`
+carrying `bill_id`, and that row is the only record of the payment.
+
+That is what keeps the money in one place. `MonthlySummary` adds up a month
+without knowing bills exist, and a paid bill is counted exactly once, by the
+same query that counts everything else. The alternative — a paid flag on the
+bill plus its own amount — gives you two tables that disagree the first time
+somebody edits one.
+
+Everything a bill says about itself is therefore a question about one month,
+asked through `?month=YYYY-MM` (`App\Support\MonthInput`, shared with the
+expenses page):
+
+| Question    | Answered by                                                       |
+| ----------- | ----------------------------------------------------------------- |
+| Due when?   | `Bill::dueDateIn()` — the day of `due_date`, clamped to the month  |
+| Paid?       | the expenses with this `bill_id` in the month cover its amount    |
+| Overdue?    | not settled, and the due date is behind us — outranks part paid   |
+| Cost so far | `Bill::paidIn()` — every payment towards the month, added up      |
+
+Two consequences worth knowing:
+
+- **Editing a bill does not rewrite history.** Past payments keep what was
+  actually paid; the new amount applies to months not yet settled.
+- **Deleting a bill keeps its payments.** `bill_id` is `nullOnDelete`, so the
+  expenses survive and simply stop being attributed to a bill.
+
+### Paying part of a month
+
+A month does not have to be settled in one go. ₱500 against a ₱900 bill writes
+a ₱500 expense and leaves ₱400 owed; pay the rest later and it settles. Each
+payment is its own expense, so the list shows what actually left your pocket
+and when, rather than one figure invented after the fact.
+
+`Bill::remainingIn()` is the ceiling, enforced in `StoreBillPaymentRequest` and
+again in `PayBill` — overpaying a month is a typo, and there is nowhere to put
+the difference. Undo (`bills.unpay`) steps back one payment rather than
+clearing the month, so a month settled twice does not lose both because the
+second was a slip.
+
+### Splitting a lump sum
+
+`App\Actions\Bills\AllocateBillPayments` answers the case that motivated all
+of this: ₱900 of electricity and ₱600 of water are due, and there is ₱1,100.
+
+Bills are settled in the order they fall due, each taking what it still needs
+until the money runs out — water clears at ₱600, electricity takes the
+remaining ₱500 — so the oldest debt goes first and at most one bill ends up
+part paid. The dialog previews the same split before anything is written, using
+the same ordering; the server remains the authority.
+
+Note the sort is a *single* callable returning a composite key. Passing
+`sortBy()` an array of closures treats each one as a comparator rather than a
+value extractor, which silently reverses the order — the bug that made
+electricity swallow ₱900 before water saw a peso.
+
+Undo exists (`bills.unpay`) because a payment writes real money into the
+expense list, and a mis-click otherwise leaves a row that looks hand-entered.
+
+## Loans keep their own ledger
+
+Bills push their payments into `expenses`; loans deliberately do not.
+
+Half of a loan's payments are money coming *back* to you, on something you
+lent. This app has no way to represent income — `expenses` means money spent —
+so putting repayments there would either overstate spending or need negative
+amounts. `loan_payments` is therefore its own table, and the expense totals
+stay a statement about what was spent.
+
+What is left to pay is never stored. It is the principal minus the payments,
+and so are the status and the settled state:
+
+| Question    | Answered by                                                    |
+| ----------- | -------------------------------------------------------------- |
+| Paid so far | `Loan::paidTotal()` — prefers the `withSum` a list already ran |
+| Left to pay | `Loan::outstanding()` — principal minus paid, floored at zero  |
+| How far?    | `Loan::status()` — open / part paid / settled                  |
+
+Direction is the whole of what makes a loan a debt or an asset, so it is stored
+explicitly and never inferred from the amount. The two totals on the index are
+kept apart for the same reason: owing ₱5,000 while being owed ₱5,000 is not the
+same position as owing nothing, and a single netted figure would hide both.
+
+### The repayment plan
+
+A loan can carry a plan — a term in months and a first due date — or not, in
+which case it is the informal kind, paid back whenever. There is no
+installments table: `App\Support\LoanSchedule` derives the months from the
+principal, the term, and the payments already recorded, so editing a loan
+re-plans it for free and nothing can fall out of step.
+
+Two rules make the schedule readable:
+
+- **Payments fill the earliest unpaid month first.** Paying ₱500 against a
+  ₱2,000 installment leaves ₱1,500 owed on *that* month rather than quietly
+  counting towards the next. The term stays fixed and the loan runs behind,
+  which is the honest reading.
+- **The last month absorbs the rounding.** ₱1,000 over three months is
+  ₱333.33, ₱333.33, ₱333.34 — the plan adds up to the principal exactly.
+
+A month reads Overdue in preference to Part paid: being behind is the thing
+worth saying, and the amount beside it shows by how much.
+
+Three consequences worth knowing:
+
+- **A payment cannot exceed the balance.** The ceiling is read off the loan in
+  `StoreLoanPaymentRequest`, because overpaying is a typo and the balance has
+  nowhere to put the difference.
+- **Editing a loan leaves its payments alone.** Lowering the principal below
+  what was already paid settles it rather than owing a negative amount.
+- **Deleting a loan takes its payments with it.** They exist only as its
+  history — unlike a bill's payments, which are expenses in their own right and
+  survive.
+
+## Pay day: one sum, two modules
+
+`AllocateLumpSum` answers the question people actually have on payday — "I have
+₱5,000, what does it cover?" — where an electricity bill and a loan installment
+compete for the same money.
+
+Everything on this screen is measured in **what is due now** — a bill's
+remainder for the month, a loan's *current* installment — and the money is
+handed out in date order until it runs out.
+
+Nothing runs ahead. A loan takes its installment and no more; a bill's month
+cannot be more than settled. An earlier version let leftover money fall through
+into loan balances, and it made the screen unreadable: a ₱20,000 loan with
+₱2,000 actually due reported ₱20,000 owed, so the total at the bottom answered
+a question nobody had asked. Paying a debt down faster is a real thing to want,
+but it is a decision made on the loan itself.
+
+The ceiling in `AllocateLumpSumRequest` is that same due-now figure, so the
+amount box cannot accept money the allocation would have nowhere to put.
+
+The month is steerable from the screen (`?month=YYYY-MM`, same `MonthInput` as
+everywhere else) and shown in a stepper, because the month decides every bill's
+due date — without it this screen could sit quietly on a different month from
+the one the bills page was showing, and the two would disagree about when a
+bill is due.
+
+A loan with no repayment plan is ordered by when it was made, which is *not* a
+due date; `has_due_date` says so and the row reads "no fixed date" rather than
+inventing one.
+
+Bills and loans are flattened into one date-ordered list (`Payable` on the wire)
+because when the money has to be split between them, the date is the only thing
+they have in common. Money you lent out never appears: this screen is money
+going out.
+
+The screen previews the split with the same single pass in TypeScript, so what
+you confirm is what gets written — the server stays the authority, and both
+per-module allocators (`AllocateBillPayments`, `AllocateLoanPayments`) keep
+working for the single-module case.
+
+One boundary this screen must not blur: **a bill payment is an expense, a loan
+payment is not.** It writes through `PayBill` and `RecordLoanPayment`
+respectively, and a test pins that.
 
 ## What is not ported
 
@@ -257,5 +431,6 @@ settings, defaults to USD) and all formatting goes through `lib/format.ts`.
   first-party Apple driver; add `socialiteproviders/apple` if you want it.
 - **Receipt OCR** (`google_mlkit_text_recognition`) and the `receipt_path`
   upload flow. The column exists; nothing writes to it yet.
-- **Bills, Loans, Shared, Reports** — routed and visible in the navigation, each
+- **Shared and Reports** — routed and visible in the navigation, each
   rendering `coming-soon`, exactly as the mobile app's `ComingSoon` tabs did.
+  Bills and Loans were among them until Phases 3 and 4 landed; see above.

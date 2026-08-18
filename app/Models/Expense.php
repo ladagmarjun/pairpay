@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  *
  * @property int $id
  * @property int $user_id
+ * @property int|null $bill_id
  * @property string $title
  * @property ExpenseCategory $category
  * @property float $amount
@@ -57,6 +58,17 @@ class Expense extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The recurring bill this expense settled, if any. Null for an expense
+     * entered by hand, and null again once the bill it came from is deleted.
+     *
+     * @return BelongsTo<Bill, $this>
+     */
+    public function bill(): BelongsTo
+    {
+        return $this->belongsTo(Bill::class);
     }
 
     /**

@@ -53,7 +53,7 @@ class RegistrationTest extends TestCase
 
         $this->assertSame('new-firebase-uid', $user->firebase_uid);
         $this->assertNull($user->password, 'The password belongs to Firebase, not the users table.');
-        $this->assertSame('USD', $user->currency_code);
+        $this->assertSame('PHP', $user->currency_code);
     }
 
     public function test_an_address_firebase_already_knows_is_a_validation_error()

@@ -3,8 +3,10 @@ import { ArrowRight } from 'lucide-react';
 import { DynamicIcon } from '@/components/dynamic-icon';
 import { Button } from '@/components/ui/button';
 import { useInitials } from '@/hooks/use-initials';
-import { bills, dashboard, loans, reports, shared } from '@/routes';
+import { dashboard, reports, shared } from '@/routes';
+import { index as billsIndex } from '@/routes/bills';
 import { index as expensesIndex } from '@/routes/expenses';
+import { index as loansIndex } from '@/routes/loans';
 import type { Auth } from '@/types';
 
 /**
@@ -23,18 +25,18 @@ const MODULES = [
     },
     {
         title: 'Bills',
-        description: 'Fixed monthly expenses and due-date reminders.',
-        href: bills(),
+        description: 'Fixed monthly expenses, and what is still to pay.',
+        href: billsIndex(),
         icon: 'receipt-text',
-        available: false,
+        available: true,
     },
     {
         title: 'Loans',
         description:
             'What you owe, what you lent, and the payments against each.',
-        href: loans(),
+        href: loansIndex(),
         icon: 'landmark',
-        available: false,
+        available: true,
     },
     {
         title: 'Shared',

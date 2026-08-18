@@ -45,7 +45,7 @@ class GoogleAuthTest extends TestCase
         $this->assertSame('google-123', $user->google_id);
         $this->assertSame('Ada Lovelace', $user->name);
         $this->assertSame('https://example.com/ada.jpg', $user->avatar);
-        $this->assertSame('USD', $user->currency_code);
+        $this->assertSame('PHP', $user->currency_code);
         $this->assertNull($user->password, 'A Google-only account has no password.');
         $this->assertNotNull($user->email_verified_at);
         $this->assertAuthenticatedAs($user);

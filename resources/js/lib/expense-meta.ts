@@ -7,8 +7,10 @@ import {
     Ellipsis,
     Film,
     GraduationCap,
+    HandCoins,
     Heart,
     Landmark,
+    PiggyBank,
     ReceiptText,
     Shapes,
     ShoppingBag,
@@ -16,7 +18,11 @@ import {
     Utensils,
     Wallet,
 } from 'lucide-react';
-import type { CategoryOption, PaymentMethodOption } from '@/types';
+import type {
+    CategoryOption,
+    DirectionOption,
+    PaymentMethodOption,
+} from '@/types';
 
 /**
  * The server sends icons by name (`ExpenseCategory::icon()`), so the enum stays
@@ -31,8 +37,10 @@ const ICONS: Record<string, LucideIcon> = {
     ellipsis: Ellipsis,
     film: Film,
     'graduation-cap': GraduationCap,
+    'hand-coins': HandCoins,
     heart: Heart,
     landmark: Landmark,
+    'piggy-bank': PiggyBank,
     'receipt-text': ReceiptText,
     shapes: Shapes,
     'shopping-bag': ShoppingBag,
@@ -49,8 +57,8 @@ export function iconFor(name: string): LucideIcon {
  * Turn an options array into a `value → option` lookup, so a row holding only
  * `category: 'food'` can still render the right label, color, and icon.
  */
-export function optionMap<T extends CategoryOption | PaymentMethodOption>(
-    options: T[],
-): Record<string, T> {
+export function optionMap<
+    T extends CategoryOption | PaymentMethodOption | DirectionOption,
+>(options: T[]): Record<string, T> {
     return Object.fromEntries(options.map((option) => [option.value, option]));
 }

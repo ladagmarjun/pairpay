@@ -19,7 +19,7 @@ class ProfileUpdateRequest extends FormRequest
     {
         return [
             ...$this->profileRules($this->user()->id),
-            // Only editable here — registration defaults new accounts to USD.
+            // Only editable here — registration defaults new accounts to PHP.
             // Optional so a partial profile update leaves it untouched.
             'currency_code' => ['sometimes', ...$this->currencyRules()],
         ];

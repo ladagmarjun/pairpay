@@ -64,4 +64,25 @@ class User extends Authenticatable implements PasskeyUser
     {
         return $this->hasMany(Expense::class);
     }
+
+    /**
+     * The user's recurring bills. The money they cost lives in `expenses` —
+     * this is only the set of things that fall due every month.
+     *
+     * @return HasMany<Bill, $this>
+     */
+    public function bills(): HasMany
+    {
+        return $this->hasMany(Bill::class);
+    }
+
+    /**
+     * Money owed in either direction — borrowed from someone, or lent to them.
+     *
+     * @return HasMany<Loan, $this>
+     */
+    public function loans(): HasMany
+    {
+        return $this->hasMany(Loan::class);
+    }
 }

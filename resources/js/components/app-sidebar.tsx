@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import {
     ChartColumn,
+    HandCoins,
     Landmark,
     LayoutGrid,
     ReceiptText,
@@ -19,8 +20,11 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { bills, dashboard, loans, reports, shared } from '@/routes';
+import { dashboard, reports, shared } from '@/routes';
+import { index as billsIndex } from '@/routes/bills';
 import { index as expensesIndex } from '@/routes/expenses';
+import { index as loansIndex } from '@/routes/loans';
+import { create as payDay } from '@/routes/payments';
 import type { NavItem } from '@/types';
 
 /**
@@ -41,13 +45,18 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Bills',
-        href: bills(),
+        href: billsIndex(),
         icon: ReceiptText,
     },
     {
         title: 'Loans',
-        href: loans(),
+        href: loansIndex(),
         icon: Landmark,
+    },
+    {
+        title: 'Pay',
+        href: payDay(),
+        icon: HandCoins,
     },
     {
         title: 'Shared',

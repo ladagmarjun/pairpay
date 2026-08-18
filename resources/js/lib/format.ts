@@ -6,17 +6,17 @@
 
 const LOCALE = 'en-US';
 
-export function formatCurrency(amount: number, currency = 'USD'): string {
+export function formatCurrency(amount: number, currency = 'PHP'): string {
     return new Intl.NumberFormat(LOCALE, {
         style: 'currency',
         currency,
     }).format(amount);
 }
 
-/** Compact currency for dashboards, e.g. `$1.2K`. */
+/** Compact currency for dashboards, e.g. `₱1.2K`. */
 export function formatCurrencyCompact(
     amount: number,
-    currency = 'USD',
+    currency = 'PHP',
 ): string {
     return new Intl.NumberFormat(LOCALE, {
         style: 'currency',
