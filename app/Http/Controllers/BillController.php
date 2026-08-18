@@ -39,6 +39,10 @@ class BillController extends Controller
     {
         $month = MonthInput::fromRequest($request);
 
+        // Bills that have not started yet are left out entirely: a bill first
+        // due next September is not something this August owes, so it should
+        // not show up here or in the month's total.
+        //
         // The payments are constrained to the month up front, so the list costs
         // two queries regardless of how many bills or how long they have run.
         // Sorted after presenting rather than in SQL: the order that matters is
@@ -46,6 +50,7 @@ class BillController extends Controller
         // index can answer, and a person's bills are few enough to sort here.
         $bills = $request->user()
             ->bills()
+            ->startedBy($month)
             ->with(['payments' => fn ($query) => $query->forMonth($month)])
             ->get()
             ->map(fn (Bill $bill): array => $this->present($bill, $month))
@@ -179,16 +184,20 @@ class BillController extends Controller
      * model serialization) so the front-end type in `types/bills.ts` has a
      * contract it can trust.
      *
-     * There is deliberately only one date here. The stored `due_date` is an
-     * anchor whose month and year mean nothing — only its day recurs — so
-     * sending it as well would offer two dates for the same bill and let the
-     * form show one while the list showed the other.
+     * The two dates here answer different questions and both are needed.
+     * `due_date` is when the bill first falls due — what the form edits, and
+     * the only one the user ever chose. `due_on` is when it falls due in the
+     * month being viewed, which is what the list shows.
+     *
+     * The form must never be seeded from `due_on`: it clamps to short months,
+     * so a bill starting on the 31st would be quietly moved to the 28th the
+     * first time it was saved from a February.
      *
      * `due_on`, `status`, `paid_amount` and `remaining` are answers about one
      * month, so a presented bill only means anything alongside the month it
      * came from.
      *
-     * @return array{id: int, name: string, amount: float, due_on: string, category: string, payment_method: string, notes: string|null, status: string, paid_amount: float, remaining: float}
+     * @return array{id: int, name: string, amount: float, due_date: string, due_on: string, category: string, payment_method: string, notes: string|null, status: string, paid_amount: float, remaining: float}
      */
     private function present(Bill $bill, CarbonImmutable $month): array
     {
@@ -200,6 +209,7 @@ class BillController extends Controller
             'id' => $bill->id,
             'name' => $bill->name,
             'amount' => $bill->amount,
+            'due_date' => $bill->due_date->toDateString(),
             'due_on' => $dueOn->toDateString(),
             'category' => $bill->category->value,
             'payment_method' => $bill->payment_method->value,

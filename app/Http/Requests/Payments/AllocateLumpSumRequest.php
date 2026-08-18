@@ -96,6 +96,9 @@ class AllocateLumpSumRequest extends FormRequest
         return $this->user()
             ->bills()
             ->whereIn('id', (array) $this->input('bills', []))
+            // A bill that has not started owes this month nothing, so an id
+            // posted for one is dropped rather than paid.
+            ->startedBy($month)
             ->with(['payments' => fn ($query) => $query->forMonth($month)])
             ->get();
     }

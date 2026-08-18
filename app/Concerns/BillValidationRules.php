@@ -20,8 +20,9 @@ trait BillValidationRules
         return [
             'name' => ['required', 'string', 'max:200'],
             'amount' => ['required', 'numeric', 'gt:0', 'max:9999999999'],
-            // Any date will do: only its day is kept, and a day the month
-            // is too short for clamps rather than being rejected.
+            // When the bill first falls due. It recurs on that day monthly
+            // from then on; a month too short for the day clamps rather than
+            // being rejected, so the 31st stays usable.
             'due_date' => ['required', 'date'],
             'category' => ['required', Rule::enum(ExpenseCategory::class)],
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)],

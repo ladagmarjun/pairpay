@@ -498,6 +498,59 @@ class BillTest extends TestCase
     }
 
     /**
+     * A bill set up to start later does not belong to the months before it,
+     * and must not be counted in their totals either.
+     */
+    public function test_a_bill_does_not_appear_before_the_month_it_starts_in(): void
+    {
+        $user = User::factory()->create();
+        Bill::factory()->for($user)->create(['amount' => 1200, 'due_date' => '2026-09-15']);
+
+        $this->actingAs($user)
+            ->get(route('bills.index', ['month' => '2026-08']))
+            ->assertInertia(fn ($page) => $page
+                ->has('bills', 0)
+                ->where('summary.total', 0));
+
+        $this->actingAs($user)
+            ->get(route('bills.index', ['month' => '2026-09']))
+            ->assertInertia(fn ($page) => $page
+                ->has('bills', 1)
+                ->where('bills.0.due_on', '2026-09-15'));
+    }
+
+    /**
+     * The month a bill starts in owes it, even when it starts partway through.
+     */
+    public function test_a_bill_appears_in_the_month_it_starts_in(): void
+    {
+        $user = User::factory()->create();
+        Bill::factory()->for($user)->create(['due_date' => '2026-08-31']);
+
+        $this->actingAs($user)
+            ->get(route('bills.index', ['month' => '2026-08']))
+            ->assertInertia(fn ($page) => $page->where('bills.0.due_on', '2026-08-31'));
+    }
+
+    /**
+     * The form edits the date the user chose, so it must show that date and
+     * not the month it is being viewed from. Seeding it from `due_on` would
+     * move a bill starting on the 31st to the 28th the first time it was
+     * saved from a February.
+     */
+    public function test_the_edit_form_shows_the_date_the_bill_was_given(): void
+    {
+        $user = User::factory()->create();
+        $bill = Bill::factory()->for($user)->dueOn('2026-01-31')->create();
+
+        $this->actingAs($user)
+            ->get(route('bills.edit', ['bill' => $bill, 'month' => '2026-02']))
+            ->assertInertia(fn ($page) => $page
+                ->where('bill.due_date', '2026-01-31')
+                ->where('bill.due_on', '2026-02-28'));
+    }
+
+    /**
      * Editing from another month opens on that month, so the two never
      * disagree wherever you came from.
      */
@@ -512,10 +565,10 @@ class BillTest extends TestCase
     }
 
     /**
-     * Changing the day moves the date the list shows; changing the month does
-     * not, because only the day recurs.
+     * Changing the due date moves the bill, month and all: pushing it into a
+     * later month takes it out of this one.
      */
-    public function test_editing_the_day_moves_the_due_date(): void
+    public function test_editing_the_due_date_moves_the_bill(): void
     {
         $user = User::factory()->create();
         $bill = Bill::factory()->for($user)->create(['due_date' => '2026-08-25']);
@@ -527,6 +580,18 @@ class BillTest extends TestCase
         $this->actingAs($user)
             ->get(route('bills.index'))
             ->assertInertia(fn ($page) => $page->where('bills.0.due_on', '2026-08-09'));
+
+        $this->actingAs($user)->put(route('bills.update', $bill), $this->validAttributes([
+            'due_date' => '2026-09-15',
+        ]));
+
+        $this->actingAs($user)
+            ->get(route('bills.index', ['month' => '2026-08']))
+            ->assertInertia(fn ($page) => $page->has('bills', 0));
+
+        $this->actingAs($user)
+            ->get(route('bills.index', ['month' => '2026-09']))
+            ->assertInertia(fn ($page) => $page->where('bills.0.due_on', '2026-09-15'));
     }
 
     /**

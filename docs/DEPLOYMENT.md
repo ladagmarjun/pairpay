@@ -173,9 +173,15 @@ Files land, but migrations still need running and caches rebuilding. Pick one:
 cd ~/app.yourdomain.com && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan storage:link
 ```
 
-**The deploy hook** — for plans without SSH. Set `DEPLOY_HOOK_TOKEN` in both the
-server `.env` and GitHub secrets, and the workflow calls it after uploading.
-Generate something long and random:
+**The deploy hook** — for plans without SSH. This needs *both* secrets:
+
+- `DEPLOY_HOOK_TOKEN`, in the server `.env` **and** in GitHub secrets — the two
+  must match, or the hook 404s.
+- `DEPLOY_HOOK_URL`, in GitHub secrets — this is what switches the step on. Set
+  the token but not the URL and the workflow skips migrations entirely, uploads
+  the files, and still goes green; it logs a warning saying so.
+
+Generate a token that is long and random:
 
 ```bash
 php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
@@ -183,6 +189,9 @@ php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
 
 It runs migrate and the cache commands, nothing else. Leave the token unset and
 the route 404s — including for you, so if you are not using it, unset it.
+
+Whichever option you pick, run it on **every** release that carries a migration.
+Uploading the files alone leaves the new code running against the old schema.
 
 **cPanel Terminal** — same commands as the SSH option, if your plan has it.
 

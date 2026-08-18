@@ -17,9 +17,14 @@ export type Bill = {
     name: string;
     amount: number;
     /**
-     * When it falls due in the month being viewed, `YYYY-MM-DD`. The only date
-     * the front end ever sees: the stored anchor's month and year mean
-     * nothing, since only its day recurs.
+     * When the bill *first* falls due, `YYYY-MM-DD`. The date the user chose,
+     * and the one the form edits.
+     */
+    due_date: string;
+    /**
+     * When it falls due in the month being viewed, `YYYY-MM-DD`. Derived from
+     * `due_date` by moving it to that month, clamped to months too short for
+     * the day — so never use it to seed the form.
      */
     due_on: string;
     category: ExpenseCategoryValue;

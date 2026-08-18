@@ -257,3 +257,15 @@ jobs:
             echo "::error::Deploy hook returned $code. Files are uploaded but migrations may not have run."
             exit 1
           }
+          echo "::notice::Migrations ran and caches were rebuilt on the server."
+
+      # Without this the deploy is silently only half done: the files land, the
+      # job goes green, and a release carrying a new migration serves 500s
+      # against the old schema until somebody notices. The hook is optional on
+      # purpose — SSH is the better way to finish a deploy where it is offered —
+      # so this warns rather than fails, but it never says nothing.
+      - name: Warn that migrations did not run
+        if: ${{ env.DEPLOY_HOOK_URL == '' }}
+        run: |
+          echo "::warning::Files are uploaded, but NO migrations ran and the caches were not rebuilt — DEPLOY_HOOK_URL is not set."
+          echo "::warning::Finish by hand: ssh in and run 'php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache', or set the DEPLOY_HOOK_URL and DEPLOY_HOOK_TOKEN secrets to have this job do it. See docs/DEPLOYMENT.md."

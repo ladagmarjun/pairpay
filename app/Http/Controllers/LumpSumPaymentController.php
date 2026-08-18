@@ -74,7 +74,10 @@ class LumpSumPaymentController extends Controller
     {
         $user = $request->user();
 
+        // A bill that has not started yet owes nothing, so it is no more
+        // payable than a settled one — same rule the bills list applies.
         $bills = $user->bills()
+            ->startedBy($month)
             ->with(['payments' => fn ($query) => $query->forMonth($month)])
             ->get()
             ->filter(fn (Bill $bill): bool => $bill->remainingIn($month) > 0.0)

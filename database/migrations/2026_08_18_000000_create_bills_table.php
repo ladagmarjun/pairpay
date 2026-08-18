@@ -23,11 +23,12 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->string('name', 200);
             $table->decimal('amount', 12, 2);
-            // When it falls due. Only the *day* of this date recurs — the month
-            // and year are the anchor it was set up in, and mean nothing after
-            // that. Months too short for the day clamp to their last day rather
-            // than spilling into the next one, so the 31st is a usable way to
-            // say "the end of the month".
+            // When it *first* falls due. From then on the day recurs every
+            // month; the months before this date do not owe the bill at all,
+            // which is what lets one be set up ahead of time. Months too short
+            // for the day clamp to their last rather than spilling into the
+            // next one, so the 31st is a usable way to say "the end of the
+            // month".
             $table->date('due_date');
             $table->string('category', 32)->default(ExpenseCategory::Bills->value);
             $table->string('payment_method', 32)->default(PaymentMethod::Cash->value);

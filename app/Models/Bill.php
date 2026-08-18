@@ -7,6 +7,7 @@ use App\Enums\PaymentMethod;
 use Carbon\CarbonImmutable;
 use Database\Factories\BillFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -20,6 +21,10 @@ use Illuminate\Support\Carbon;
  * The bill is the template. Paying it for a month creates an {@see Expense}
  * carrying `bill_id`, which is the only record of the payment — see
  * `paymentFor()`.
+ *
+ * `due_date` is when it *first* falls due. It recurs on that day every month
+ * from then on, and does not exist in the months before it — a bill set up to
+ * start next September is not something you owe this August.
  *
  * @property int $id
  * @property int $user_id
@@ -76,14 +81,30 @@ class Bill extends Model
     /**
      * The date this bill falls due within the given month.
      *
-     * Only the day of `due_date` recurs, so a bill anchored on 31 January
+     * Only the day of `due_date` recurs, so a bill starting on 31 January
      * lands on the 28th of a February rather than rolling into March.
+     *
+     * Says nothing about whether the bill has started yet — that is
+     * {@see scopeStartedBy()}.
      */
     public function dueDateIn(CarbonImmutable $month): CarbonImmutable
     {
         $start = $month->startOfMonth();
 
         return $start->setDay(min($this->due_date->day, $start->daysInMonth));
+    }
+
+    /**
+     * Only the bills that have begun by the given month.
+     *
+     * Compared against the end of the month rather than its start, so a bill
+     * first due on the 20th still belongs to the month it starts in.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Bill>  $query
+     */
+    public function scopeStartedBy(Builder $query, CarbonImmutable $month): void
+    {
+        $query->whereDate('due_date', '<=', $month->endOfMonth());
     }
 
     /**

@@ -24,8 +24,10 @@ import type { RouteFormDefinition } from '@/wayfinder';
  * keeps the two flows consistent — the same arrangement as `ExpenseForm`, and
  * the only difference between them is where it posts to.
  *
- * The due date is an anchor rather than a one-off: only its day recurs, which
- * is why the form says so underneath the field.
+ * The due date is when the bill *first* falls due, not a one-off: it recurs on
+ * that day every month afterwards, and the months before it do not owe it at
+ * all. The note under the field says so, since a date input on its own reads
+ * like a single occurrence.
  */
 export function BillForm({
     formProps,
@@ -85,23 +87,26 @@ export function BillForm({
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="due_date">Due date</Label>
+                        <Label htmlFor="due_date">First due date</Label>
 
+                        {/* Seeded from the bill's own `due_date`, never from
+                            `due_on` — that one clamps to short months, and
+                            would move a bill due on the 31st to the 28th the
+                            first time it was saved from a February. */}
                         <Input
                             id="due_date"
                             name="due_date"
                             type="date"
                             required
-                            defaultValue={bill?.due_on ?? todayIso()}
+                            defaultValue={bill?.due_date ?? todayIso()}
                             disabled={processing}
                         />
 
                         <p className="text-sm text-muted-foreground">
-                            Only the <em>day</em> matters — this repeats every
-                            month, so the month shown here is just the one you
-                            are looking at. A month too short for the day uses
-                            its last, making the 31st a way to say “the end of
-                            the month”.
+                            When this is first due. It then repeats on the same
+                            day every month, and months before this date do not
+                            owe it. A month too short for the day uses its last,
+                            making the 31st a way to say “the end of the month”.
                         </p>
 
                         <InputError message={errors.due_date} />
