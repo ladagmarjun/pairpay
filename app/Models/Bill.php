@@ -100,7 +100,7 @@ class Bill extends Model
      * Compared against the end of the month rather than its start, so a bill
      * first due on the 20th still belongs to the month it starts in.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<Bill>  $query
+     * @param  Builder<Bill>  $query
      */
     public function scopeStartedBy(Builder $query, CarbonImmutable $month): void
     {
