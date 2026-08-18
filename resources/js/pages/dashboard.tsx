@@ -1,5 +1,6 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowRight } from 'lucide-react';
+import { MonthlyExpenseChart } from '@/components/dashboard/monthly-expense-chart';
 import { DynamicIcon } from '@/components/dynamic-icon';
 import { Button } from '@/components/ui/button';
 import { useInitials } from '@/hooks/use-initials';
@@ -7,12 +8,11 @@ import { dashboard, reports, shared } from '@/routes';
 import { index as billsIndex } from '@/routes/bills';
 import { index as expensesIndex } from '@/routes/expenses';
 import { index as loansIndex } from '@/routes/loans';
-import type { Auth } from '@/types';
+import type { Auth, MonthlyTrend } from '@/types';
 
 /**
- * Landing screen for the authenticated app. Mirrors the mobile app's dashboard
- * placeholder: it confirms who is signed in and lays out the roadmap, while the
- * charts-and-insights dashboard is still ahead (Phase 7).
+ * Landing screen for the authenticated app. Leads with what the months have
+ * actually cost, then lays out the rest of the roadmap underneath.
  */
 const MODULES = [
     {
@@ -54,7 +54,7 @@ const MODULES = [
     },
 ];
 
-export default function Dashboard() {
+export default function Dashboard({ trend }: { trend: MonthlyTrend }) {
     const { auth } = usePage<{ auth: Auth }>().props;
     const getInitials = useInitials();
 
@@ -79,6 +79,8 @@ export default function Dashboard() {
                         </p>
                     </div>
                 </div>
+
+                <MonthlyExpenseChart trend={trend} />
 
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {MODULES.map((module) => (
