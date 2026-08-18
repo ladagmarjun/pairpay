@@ -248,13 +248,37 @@ jobs:
         env:
           DEPLOY_HOOK_TOKEN: ${{ secrets.DEPLOY_HOOK_TOKEN }}
         run: |
-          code=$(curl -sS --max-time 120 -o /tmp/hook.txt -w '%{http_code}' \
+          # A browser User-Agent because shared hosting WAFs (Namecheap runs
+          # Imunify360/ModSecurity) routinely 403 a bare `curl/8.x` before the
+          # request ever reaches PHP. -D captures the response headers, which
+          # are what tell you *who* answered when that happens.
+          code=$(curl -sS --max-time 120 -o /tmp/hook.txt -D /tmp/hook.head -w '%{http_code}' \
             -X POST "$DEPLOY_HOOK_URL" \
+            -A 'Mozilla/5.0 (compatible; PairPayDeploy/1.0)' \
+            -H 'Accept: application/json' \
             -H "X-Deploy-Token: $DEPLOY_HOOK_TOKEN")
-          cat /tmp/hook.txt
+
+          echo "--- response headers ---"
+          cat /tmp/hook.head
+          echo "--- response body (first 40 lines) ---"
+          head -40 /tmp/hook.txt
           echo
+
           test "$code" = "200" || {
             echo "::error::Deploy hook returned $code. Files are uploaded but migrations may not have run."
+
+            # The app answers 404 for a bad token and 500 for a failed command;
+            # it has no 403 anywhere. So a 403 means something in front of
+            # Laravel refused the request, and the token is a red herring.
+            case "$code" in
+              403)
+                echo "::error::403 does not come from this app — the request was blocked before it reached Laravel. Usual suspect is the host's WAF (ModSecurity/Imunify360) rejecting the POST or the X-Deploy-Token header. Check the body above: an HTML error page means the WAF, JSON means Laravel. Fixes: whitelist the rule in cPanel > ModSecurity, or finish the deploy over SSH instead." ;;
+              404)
+                echo "::error::404 is this app saying the token did not match — DEPLOY_HOOK_TOKEN in GitHub must equal DEPLOY_HOOK_TOKEN in the server's .env. It is also 404 when the server .env has no token set at all." ;;
+              000)
+                echo "::error::No HTTP response at all — DEPLOY_HOOK_URL is unreachable. Check the host and that the URL ends in /deploy-hook." ;;
+            esac
+
             exit 1
           }
           echo "::notice::Migrations ran and caches were rebuilt on the server."

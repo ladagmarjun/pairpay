@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\Artisan;
 use Tests\TestCase;
 
@@ -38,6 +39,28 @@ class DeployHookTest extends TestCase
 
         $this->postJson(route('deploy.hook'), [], ['X-Deploy-Token' => 'wrong'])
             ->assertNotFound();
+    }
+
+    /**
+     * The hook has no 403 in it, at any token, and that is load-bearing when a
+     * deploy fails: a 403 in CI means the request was stopped in front of
+     * Laravel — a host WAF, usually — and chasing the token is wasted effort.
+     * The deploy workflow prints that guidance on a 403, so pin the premise.
+     */
+    public function test_it_never_answers_forbidden(): void
+    {
+        // More attempts than the throttle allows, and the throttle has its own
+        // test — a 429 here would say nothing about the status under test.
+        $this->withoutMiddleware(ThrottleRequests::class);
+
+        foreach ([null, 'a-long-random-token'] as $configured) {
+            config()->set('deploy.token', $configured);
+
+            foreach ([[], ['X-Deploy-Token' => ''], ['X-Deploy-Token' => 'wrong']] as $headers) {
+                $this->postJson(route('deploy.hook'), [], $headers)
+                    ->assertStatus(404);
+            }
+        }
     }
 
     public function test_it_runs_the_deploy_commands_with_the_right_token(): void
