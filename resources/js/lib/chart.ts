@@ -3,6 +3,16 @@
  */
 
 /**
+ * The year a chart covers, for its caption.
+ *
+ * Every chart runs January to December of one year, so the first point names
+ * it. Read off the `YYYY-MM` key rather than the label, which is prose.
+ */
+export function chartYear(points: { month: string }[]): string {
+    return points[0]?.month.slice(0, 4) ?? '';
+}
+
+/**
  * Gridline values at round numbers, the top one at or above the tallest month.
  *
  * Scaling straight to the peak would press the tallest bar against the top of

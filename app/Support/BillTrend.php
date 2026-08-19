@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\DB;
  * had started by then — at whatever they cost *today*. Editing rent changes
  * every month's `due` on this chart, while `paid` stays as it happened, since
  * that side is read from the expenses the payments wrote.
+ *
+ * Months the year has not reached yet are left empty; see {@see TrendWindow}.
  */
 final readonly class BillTrend
 {
@@ -41,20 +43,19 @@ final readonly class BillTrend
      */
     public static function forUser(User $user, CarbonImmutable $endMonth, int $months = 12): self
     {
-        $end = $endMonth->startOfMonth();
-        $start = $end->subMonths($months - 1);
+        $window = TrendWindow::ending($endMonth, $months);
 
-        // Bills that had not started by the end of the window cannot have been
-        // owed in any month of it.
-        $bills = $user->bills()->startedBy($end)->get(['amount', 'due_date']);
+        // Bills that had not started by the last month drawn cannot have been
+        // owed in any month that is.
+        $bills = $user->bills()->startedBy($window->lastDrawn)->get(['amount', 'due_date']);
 
         $payments = Expense::query()
             ->where('user_id', $user->id)
             // Paying a bill writes an expense carrying `bill_id`; that is the
             // only record of the payment, so it is also the only thing to sum.
             ->whereNotNull('bill_id')
-            ->whereDate('date', '>=', $start)
-            ->whereDate('date', '<=', $end->endOfMonth())
+            ->whereDate('date', '>=', $window->start)
+            ->whereDate('date', '<=', $window->horizon())
             ->groupBy('period')
             ->select([MonthPeriod::expression(), DB::raw('SUM(amount) as period_total')])
             ->pluck('period_total', 'period');
@@ -63,16 +64,20 @@ final readonly class BillTrend
         $due = 0.0;
         $paid = 0.0;
 
-        for ($offset = 0; $offset < $months; $offset++) {
-            $month = $start->addMonths($offset);
+        foreach ($window->months() as $month) {
             $key = $month->format('Y-m');
-            $endOfMonth = $month->endOfMonth();
+            $monthDue = 0.0;
+            $monthPaid = 0.0;
 
-            $monthDue = round((float) $bills
-                ->filter(fn (Bill $bill): bool => $bill->due_date->lessThanOrEqualTo($endOfMonth))
-                ->sum('amount'), 2);
+            if ($window->draws($month)) {
+                $endOfMonth = $month->endOfMonth();
 
-            $monthPaid = round((float) ($payments[$key] ?? 0), 2);
+                $monthDue = round((float) $bills
+                    ->filter(fn (Bill $bill): bool => $bill->due_date->lessThanOrEqualTo($endOfMonth))
+                    ->sum('amount'), 2);
+
+                $monthPaid = round((float) ($payments[$key] ?? 0), 2);
+            }
 
             $points[] = [
                 'month' => $key,

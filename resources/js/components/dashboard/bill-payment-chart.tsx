@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { axisTicks } from '@/lib/chart';
+import { axisTicks, chartYear } from '@/lib/chart';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { BillTrend } from '@/types';
@@ -23,6 +23,7 @@ export function BillPaymentChart({ bills }: { bills: BillTrend }) {
     const scaleMax = ticks[ticks.length - 1];
 
     const tracked = bills.due > 0 || bills.paid > 0;
+    const year = chartYear(bills.points);
     const widestTick = formatCurrencyCompact(scaleMax);
 
     return (
@@ -31,7 +32,7 @@ export function BillPaymentChart({ bills }: { bills: BillTrend }) {
                 <div>
                     <h2 className="font-medium">Bills</h2>
                     <p className="text-sm text-muted-foreground">
-                        Due and paid, the last {bills.points.length} months
+                        Due and paid in {year}
                     </p>
                 </div>
 
@@ -197,11 +198,7 @@ export function BillPaymentChart({ bills }: { bills: BillTrend }) {
                                                 aria-hidden="true"
                                                 className={cn(
                                                     'mt-2 text-xs text-muted-foreground',
-                                                    (bills.points.length -
-                                                        1 -
-                                                        index) %
-                                                        3 !==
-                                                        0 &&
+                                                    index % 3 !== 0 &&
                                                         'invisible sm:visible',
                                                 )}
                                             >

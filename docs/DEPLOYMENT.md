@@ -82,7 +82,7 @@ Create `/home/USER/app.yourdomain.com/.env` through **File Manager**. It is deli
 never deployed — CI would overwrite it, and it holds every secret you have.
 
 ```dotenv
-APP_NAME=PairPay
+APP_NAME=Gastos
 APP_ENV=production
 APP_KEY=
 APP_DEBUG=false

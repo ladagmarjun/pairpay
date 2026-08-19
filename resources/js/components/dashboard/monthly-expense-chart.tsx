@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { axisTicks } from '@/lib/chart';
+import { axisTicks, chartYear } from '@/lib/chart';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { MonthlyTrend } from '@/types';
@@ -32,6 +32,7 @@ export function MonthlyExpenseChart({ trend }: { trend: MonthlyTrend }) {
     );
 
     const spent = trend.total > 0;
+    const year = chartYear(trend.points);
     const widestTick = formatCurrencyCompact(scaleMax);
 
     return (
@@ -39,9 +40,7 @@ export function MonthlyExpenseChart({ trend }: { trend: MonthlyTrend }) {
             <figcaption className="mb-6 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
                 <div>
                     <h2 className="font-medium">Monthly expenses</h2>
-                    <p className="text-sm text-muted-foreground">
-                        The last {trend.points.length} months
-                    </p>
+                    <p className="text-sm text-muted-foreground">{year}</p>
                 </div>
 
                 {spent && (
@@ -190,11 +189,12 @@ export function MonthlyExpenseChart({ trend }: { trend: MonthlyTrend }) {
 
                                             {/* Twelve three-letter months do
                                                 not fit a phone. Every third is
-                                                kept, counted back from the
-                                                newest so the month you are in
-                                                is always one of them; the rest
-                                                stay in the layout, just unseen,
-                                                so nothing shifts at `sm`. */}
+                                                kept, counted forward from
+                                                January so the quarters land on
+                                                the labels a year is read by;
+                                                the rest stay in the layout,
+                                                just unseen, so nothing shifts
+                                                at `sm`. */}
                                             <span
                                                 aria-hidden="true"
                                                 className={cn(
@@ -202,11 +202,7 @@ export function MonthlyExpenseChart({ trend }: { trend: MonthlyTrend }) {
                                                     index === peakIndex
                                                         ? 'text-foreground'
                                                         : 'text-muted-foreground',
-                                                    (trend.points.length -
-                                                        1 -
-                                                        index) %
-                                                        3 !==
-                                                        0 &&
+                                                    index % 3 !== 0 &&
                                                         'invisible sm:visible',
                                                 )}
                                             >

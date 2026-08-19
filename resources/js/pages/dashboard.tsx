@@ -1,6 +1,7 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowRight } from 'lucide-react';
 import { BillPaymentChart } from '@/components/dashboard/bill-payment-chart';
+import { LoanBalanceChart } from '@/components/dashboard/loan-balance-chart';
 import { MonthlyExpenseChart } from '@/components/dashboard/monthly-expense-chart';
 import { DynamicIcon } from '@/components/dynamic-icon';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { dashboard, reports, shared } from '@/routes';
 import { index as billsIndex } from '@/routes/bills';
 import { index as expensesIndex } from '@/routes/expenses';
 import { index as loansIndex } from '@/routes/loans';
-import type { Auth, BillTrend, MonthlyTrend } from '@/types';
+import type { Auth, BillTrend, LoanTrend, MonthlyTrend } from '@/types';
 
 /**
  * Landing screen for the authenticated app. Leads with what the months have
@@ -58,9 +59,11 @@ const MODULES = [
 export default function Dashboard({
     trend,
     bills,
+    loans,
 }: {
     trend: MonthlyTrend;
     bills: BillTrend;
+    loans: LoanTrend;
 }) {
     const { auth } = usePage<{ auth: Auth }>().props;
     const getInitials = useInitials();
@@ -87,10 +90,16 @@ export default function Dashboard({
                     </div>
                 </div>
 
+                {/* The headline chart runs the full width; the two it is
+                    read against pair up underneath. */}
                 <div className="grid gap-4 xl:grid-cols-2">
-                    <MonthlyExpenseChart trend={trend} />
+                    <div className="xl:col-span-2">
+                        <MonthlyExpenseChart trend={trend} />
+                    </div>
 
                     <BillPaymentChart bills={bills} />
+
+                    <LoanBalanceChart loans={loans} />
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

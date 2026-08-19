@@ -44,3 +44,29 @@ export type BillTrend = {
     /** The taller of the two series, which is what both scale to. */
     peak: number;
 };
+
+/** What was still owed as one month closed, in both directions. */
+export type LoanTrendPoint = {
+    /** `YYYY-MM`. */
+    month: string;
+    label: string;
+    short_label: string;
+    /** Outstanding on what you borrowed. */
+    borrowed: number;
+    /** Outstanding on what you lent. */
+    lent: number;
+};
+
+/**
+ * Mirrors `LoanTrend::toArray()`. A balance rather than a flow, so the two
+ * headline figures are where the window ends — not a sum across it — and the
+ * directions are never netted off against each other.
+ */
+export type LoanTrend = {
+    /** Oldest first, one entry per month in the window. */
+    points: LoanTrendPoint[];
+    owed_by_you: number;
+    owed_to_you: number;
+    /** The tallest bar of either direction, which both scale to. */
+    peak: number;
+};
