@@ -70,3 +70,30 @@ export type LoanTrend = {
     /** The tallest bar of either direction, which both scale to. */
     peak: number;
 };
+
+/** One month of the two ledgers side by side. */
+export type CashflowPoint = {
+    /** `YYYY-MM`. */
+    month: string;
+    label: string;
+    short_label: string;
+    /** Everything received that month. */
+    income: number;
+    /** Everything spent, bill payments included — they are expenses. */
+    spent: number;
+};
+
+/**
+ * Mirrors `CashflowTrend::toArray()`. Loan movements are deliberately absent
+ * from both sides; see the class.
+ */
+export type CashflowTrend = {
+    /** Oldest first, one entry per month in the window. */
+    points: CashflowPoint[];
+    income: number;
+    spent: number;
+    /** Income less spending. Negative when the year has spent more than it earned. */
+    surplus: number;
+    /** The tallest bar of either side, which both scale to. */
+    peak: number;
+};

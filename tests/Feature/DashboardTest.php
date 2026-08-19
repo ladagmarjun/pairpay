@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Bill;
 use App\Models\Expense;
+use App\Models\Income;
 use App\Models\Loan;
 use App\Models\LoanPayment;
 use App\Models\User;
@@ -366,6 +367,97 @@ class DashboardTest extends TestCase
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertInertia(fn ($page) => $page->where('loans.points.7.borrowed', 300));
+    }
+
+    public function test_it_charts_cashflow_over_the_same_year(): void
+    {
+        $user = User::factory()->create();
+
+        Income::factory()->for($user)->create(['amount' => 30000, 'date' => '2026-08-15']);
+        Expense::factory()->for($user)->create(['amount' => 12000, 'date' => '2026-08-20']);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->has('cashflow.points', 12)
+                ->where('cashflow.points.0.month', '2026-01')
+                ->where('cashflow.points.7.income', 30000)
+                ->where('cashflow.points.7.spent', 12000)
+                ->where('cashflow.surplus', 18000)
+                ->where('cashflow.peak', 30000));
+    }
+
+    /**
+     * Spending more than came in is the thing the chart is for, so the surplus
+     * goes negative rather than being floored at zero.
+     */
+    public function test_a_month_that_overspends_shows_a_negative_surplus(): void
+    {
+        $user = User::factory()->create();
+
+        Income::factory()->for($user)->create(['amount' => 1000, 'date' => '2026-08-15']);
+        Expense::factory()->for($user)->create(['amount' => 2500, 'date' => '2026-08-20']);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page->where('cashflow.surplus', -1500));
+    }
+
+    /**
+     * Borrowing is not earning, and a repayment coming back on a loan you made
+     * is your own money returning. Neither belongs on the cashflow chart, or a
+     * month you were paid back would read as a month you earned.
+     */
+    public function test_loan_money_is_never_counted_as_cashflow(): void
+    {
+        $user = User::factory()->create();
+
+        $loan = Loan::factory()->for($user)->lent()->create([
+            'principal' => 5000,
+            'date' => '2026-08-01',
+        ]);
+
+        LoanPayment::factory()->for($loan)->create(['amount' => 5000, 'date' => '2026-08-10']);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('cashflow.points.7.income', 0)
+                ->where('cashflow.points.7.spent', 0)
+                ->where('cashflow.income', 0));
+    }
+
+    /**
+     * Paying a bill writes an expense, so it is already on the spending side —
+     * counting the bill as well would double it.
+     */
+    public function test_a_bill_payment_is_counted_once_as_spending(): void
+    {
+        $user = User::factory()->create();
+        $bill = Bill::factory()->for($user)->dueOn('2026-08-05')->create(['amount' => 1000]);
+
+        Expense::factory()->for($user)->create([
+            'bill_id' => $bill->id,
+            'amount' => 1000,
+            'date' => '2026-08-05',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page->where('cashflow.points.7.spent', 1000));
+    }
+
+    public function test_cashflow_only_counts_the_signed_in_users_money(): void
+    {
+        $user = User::factory()->create();
+        $stranger = User::factory()->create();
+
+        Income::factory()->for($user)->create(['amount' => 700, 'date' => '2026-08-15']);
+        Income::factory()->for($stranger)->create(['amount' => 9999, 'date' => '2026-08-15']);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page->where('cashflow.points.7.income', 700));
     }
 
     public function test_the_dashboard_needs_a_signed_in_user(): void

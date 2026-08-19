@@ -1,6 +1,7 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowRight } from 'lucide-react';
 import { BillPaymentChart } from '@/components/dashboard/bill-payment-chart';
+import { CashflowChart } from '@/components/dashboard/cashflow-chart';
 import { LoanBalanceChart } from '@/components/dashboard/loan-balance-chart';
 import { MonthlyExpenseChart } from '@/components/dashboard/monthly-expense-chart';
 import { DynamicIcon } from '@/components/dynamic-icon';
@@ -9,14 +10,28 @@ import { useInitials } from '@/hooks/use-initials';
 import { dashboard, reports, shared } from '@/routes';
 import { index as billsIndex } from '@/routes/bills';
 import { index as expensesIndex } from '@/routes/expenses';
+import { index as incomeIndex } from '@/routes/income';
 import { index as loansIndex } from '@/routes/loans';
-import type { Auth, BillTrend, LoanTrend, MonthlyTrend } from '@/types';
+import type {
+    Auth,
+    BillTrend,
+    CashflowTrend,
+    LoanTrend,
+    MonthlyTrend,
+} from '@/types';
 
 /**
  * Landing screen for the authenticated app. Leads with what the months have
  * actually cost, then lays out the rest of the roadmap underneath.
  */
 const MODULES = [
+    {
+        title: 'Income',
+        description: 'What came in, from where, and how it adds up.',
+        href: incomeIndex(),
+        icon: 'trending-up',
+        available: true,
+    },
     {
         title: 'Expenses',
         description:
@@ -57,10 +72,12 @@ const MODULES = [
 ];
 
 export default function Dashboard({
+    cashflow,
     trend,
     bills,
     loans,
 }: {
+    cashflow: CashflowTrend;
     trend: MonthlyTrend;
     bills: BillTrend;
     loans: LoanTrend;
@@ -90,9 +107,13 @@ export default function Dashboard({
                     </div>
                 </div>
 
-                {/* The headline chart runs the full width; the two it is
-                    read against pair up underneath. */}
+                {/* Cashflow leads — it is the question the rest inform.
+                    The two module charts pair up underneath. */}
                 <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="xl:col-span-2">
+                        <CashflowChart cashflow={cashflow} />
+                    </div>
+
                     <div className="xl:col-span-2">
                         <MonthlyExpenseChart trend={trend} />
                     </div>

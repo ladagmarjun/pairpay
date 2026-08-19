@@ -5,6 +5,7 @@ import {
     Landmark,
     LayoutGrid,
     ReceiptText,
+    TrendingUp,
     Users,
     Wallet,
 } from 'lucide-react';
@@ -23,6 +24,7 @@ import {
 import { dashboard, reports, shared } from '@/routes';
 import { index as billsIndex } from '@/routes/bills';
 import { index as expensesIndex } from '@/routes/expenses';
+import { index as incomeIndex } from '@/routes/income';
 import { index as loansIndex } from '@/routes/loans';
 import { create as payDay } from '@/routes/payments';
 import type { NavItem } from '@/types';
@@ -37,6 +39,11 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+    {
+        title: 'Income',
+        href: incomeIndex(),
+        icon: TrendingUp,
     },
     {
         title: 'Expenses',

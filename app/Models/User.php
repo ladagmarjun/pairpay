@@ -66,6 +66,17 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Money the user has received. Its own relation rather than signed
+     * expenses, for the reason given on the `incomes` migration.
+     *
+     * @return HasMany<Income, $this>
+     */
+    public function incomes(): HasMany
+    {
+        return $this->hasMany(Income::class);
+    }
+
+    /**
      * The user's recurring bills. The money they cost lives in `expenses` —
      * this is only the set of things that fall due every month.
      *

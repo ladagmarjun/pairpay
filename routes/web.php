@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\BillController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\LoanPaymentController;
 use App\Http\Controllers\LumpSumPaymentController;
@@ -50,6 +51,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
 
     Route::resource('expenses', ExpenseController::class)->except('show');
+
+    // Uncountable, so the URI and the route names stay singular: `income`,
+    // not `incomes`.
+    Route::resource('income', IncomeController::class)->except('show');
 
     Route::resource('bills', BillController::class)->except('show');
 
