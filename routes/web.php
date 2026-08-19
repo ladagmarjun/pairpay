@@ -9,9 +9,13 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\LoanPaymentController;
 use App\Http\Controllers\LumpSumPaymentController;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
+// There is no marketing page to land on, so `/` is a doorway: signed in goes
+// to the dashboard, everyone else to the login screen.
+Route::get('/', fn () => to_route(Auth::check() ? 'dashboard' : 'login'))
+    ->name('home');
 
 Route::middleware('guest')->group(function () {
     Route::get('auth/google/redirect', [GoogleAuthController::class, 'redirect'])

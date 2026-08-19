@@ -5,7 +5,6 @@ namespace App\Support;
 use App\Models\Expense;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -43,7 +42,7 @@ final readonly class MonthlyTrend
             ->whereDate('date', '>=', $start)
             ->whereDate('date', '<=', $end->endOfMonth())
             ->groupBy('period')
-            ->select([self::periodExpression(), DB::raw('SUM(amount) as period_total')])
+            ->select([MonthPeriod::expression(), DB::raw('SUM(amount) as period_total')])
             ->pluck('period_total', 'period');
 
         $points = [];
@@ -71,26 +70,6 @@ final readonly class MonthlyTrend
             total: round($total, 2),
             average: $months > 0 ? round($total / $months, 2) : 0.0,
         );
-    }
-
-    /**
-     * `YYYY-MM` for the expense's date, in the dialect of whichever database
-     * is answering.
-     *
-     * Tests run on SQLite and production on MySQL, so a bare `DATE_FORMAT`
-     * would pass CI and fail nowhere until deploy. Anything unrecognised gets
-     * the standard-SQL form rather than a guess.
-     */
-    private static function periodExpression(): Expression
-    {
-        $sql = match (DB::connection()->getDriverName()) {
-            'sqlite' => "strftime('%Y-%m', date)",
-            'pgsql' => "to_char(date, 'YYYY-MM')",
-            'sqlsrv' => "format(date, 'yyyy-MM')",
-            default => "date_format(date, '%Y-%m')",
-        };
-
-        return DB::raw($sql.' as period');
     }
 
     /**
