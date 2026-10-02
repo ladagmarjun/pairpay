@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Support\BillTrend;
+use App\Support\BillBreakdown;
 use App\Support\CashflowTrend;
 use App\Support\LoanTrend;
 use App\Support\MonthInput;
@@ -45,7 +45,7 @@ class DashboardController extends Controller
         return Inertia::render('dashboard', [
             'cashflow' => CashflowTrend::forUser($user, $december, self::TREND_MONTHS)->toArray(),
             'trend' => MonthlyTrend::forUser($user, $december, self::TREND_MONTHS)->toArray(),
-            'bills' => BillTrend::forUser($user, $december, self::TREND_MONTHS)->toArray(),
+            'bills' => BillBreakdown::forUser($user, $month)->toArray(),
             'loans' => LoanTrend::forUser($user, $december, self::TREND_MONTHS)->toArray(),
             'summary' => MonthlySummary::forUser($user, $month)->toArray(),
         ]);

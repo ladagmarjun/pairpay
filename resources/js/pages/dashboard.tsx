@@ -14,7 +14,7 @@ import { index as incomeIndex } from '@/routes/income';
 import { index as loansIndex } from '@/routes/loans';
 import type {
     Auth,
-    BillTrend,
+    BillBreakdown,
     CashflowTrend,
     LoanTrend,
     MonthlyTrend,
@@ -79,7 +79,7 @@ export default function Dashboard({
 }: {
     cashflow: CashflowTrend;
     trend: MonthlyTrend;
-    bills: BillTrend;
+    bills: BillBreakdown;
     loans: LoanTrend;
 }) {
     const { auth } = usePage<{ auth: Auth }>().props;

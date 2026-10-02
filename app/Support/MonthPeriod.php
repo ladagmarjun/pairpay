@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
  * Grouping expenses by the month they fall in.
  *
  * Lives on its own because the SQL differs per driver and more than one
- * aggregate needs it — see {@see MonthlyTrend} and {@see BillTrend}.
+ * aggregate needs it — see {@see MonthlyTrend} and {@see CashflowTrend}.
  */
 final class MonthPeriod
 {

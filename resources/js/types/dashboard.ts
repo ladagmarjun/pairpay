@@ -23,25 +23,29 @@ export type MonthlyTrend = {
     peak: number;
 };
 
-/** One month of fixed bills: what fell due, and what was paid against it. */
-export type BillTrendPoint = {
-    /** `YYYY-MM`. */
-    month: string;
-    label: string;
-    short_label: string;
-    /** Every bill that had started by this month, at what it costs today. */
+/** One bill in the month: what it owed, and what was paid against it. */
+export type BillBreakdownItem = {
+    id: number;
+    name: string;
+    /** `YYYY-MM-DD` — the day it falls due within this month. */
+    due_on: string;
+    /** What the bill costs today. */
     due: number;
-    /** What the bill payments in this month actually came to. */
+    /** What the payments towards it in this month came to. */
     paid: number;
 };
 
-/** Mirrors `BillTrend::toArray()`. */
-export type BillTrend = {
-    /** Oldest first, one entry per month in the window. */
-    points: BillTrendPoint[];
+/** Mirrors `BillBreakdown::toArray()` — a single month, bill by bill. */
+export type BillBreakdown = {
+    /** `YYYY-MM`. */
+    month: string;
+    /** `August 2026`. */
+    label: string;
+    /** Every bill that had started by this month, in due-day order. */
+    bills: BillBreakdownItem[];
     due: number;
     paid: number;
-    /** The taller of the two series, which is what both scale to. */
+    /** The largest due or paid figure, which every bar scales to. */
     peak: number;
 };
 

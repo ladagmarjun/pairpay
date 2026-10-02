@@ -158,43 +158,44 @@ class DashboardTest extends TestCase
                 ->where('trend.average', 53.33));
     }
 
-    public function test_it_charts_the_bills_over_the_same_year(): void
+    public function test_the_bills_chart_covers_only_the_month_being_viewed(): void
     {
         $user = User::factory()->create();
 
         $this->actingAs($user)
-            ->get(route('dashboard'))
+            ->get(route('dashboard', ['month' => '2026-08']))
             ->assertInertia(fn ($page) => $page
-                ->has('bills.points', 12)
-                ->where('bills.points.0.month', '2026-01')
-                ->where('bills.points.11.month', '2026-12'));
+                ->where('bills.month', '2026-08')
+                ->where('bills.label', 'August 2026')
+                ->has('bills.bills', 0));
     }
 
     /**
      * A bill is a template, not a row per month: it falls due every month from
-     * the month it starts in, and in none of the ones before it. Nor in the
-     * ones the year has not reached — a bill that will fall due in October is
-     * not something October owes yet.
+     * the month it starts in, and in none of the ones before it.
      */
-    public function test_a_bill_is_due_in_every_month_from_the_one_it_starts_in(): void
+    public function test_a_bill_is_listed_from_the_month_it_starts_in(): void
     {
         $user = User::factory()->create();
 
         Bill::factory()->for($user)->dueOn('2026-07-20')->create(['amount' => 1500]);
 
         $this->actingAs($user)
-            ->get(route('dashboard'))
+            ->get(route('dashboard', ['month' => '2026-06']))
+            ->assertInertia(fn ($page) => $page->has('bills.bills', 0)->where('bills.due', 0));
+
+        $this->actingAs($user)
+            ->get(route('dashboard', ['month' => '2026-08']))
             ->assertInertia(fn ($page) => $page
-                ->where('bills.points.5.due', 0)
-                ->where('bills.points.6.due', 1500)
-                ->where('bills.points.7.due', 1500)
-                ->where('bills.points.8.due', 0));
+                ->has('bills.bills', 1)
+                ->where('bills.bills.0.due', 1500)
+                ->where('bills.bills.0.due_on', '2026-08-20'));
     }
 
-    public function test_paid_counts_only_the_expenses_a_bill_payment_wrote(): void
+    public function test_paid_counts_only_that_bills_payments_in_the_month(): void
     {
         $user = User::factory()->create();
-        $bill = Bill::factory()->for($user)->dueOn('2026-08-05')->create(['amount' => 1000]);
+        $bill = Bill::factory()->for($user)->dueOn('2026-07-05')->create(['amount' => 1000]);
 
         Expense::factory()->for($user)->create([
             'bill_id' => $bill->id,
@@ -202,23 +203,29 @@ class DashboardTest extends TestCase
             'date' => '2026-08-05',
         ]);
 
-        // Groceries are spend, not a bill payment, so the bills chart leaves
-        // them to the expense chart beside it.
+        // July's payment belongs to July, and groceries are spend, not a bill
+        // payment — neither shows against August's bill.
+        Expense::factory()->for($user)->create([
+            'bill_id' => $bill->id,
+            'amount' => 1000,
+            'date' => '2026-07-05',
+        ]);
         Expense::factory()->for($user)->create(['amount' => 900, 'date' => '2026-08-06']);
 
         $this->actingAs($user)
-            ->get(route('dashboard'))
+            ->get(route('dashboard', ['month' => '2026-08']))
             ->assertInertia(fn ($page) => $page
-                ->where('bills.points.7.due', 1000)
-                ->where('bills.points.7.paid', 400)
+                ->where('bills.bills.0.due', 1000)
+                ->where('bills.bills.0.paid', 400)
+                ->where('bills.due', 1000)
                 ->where('bills.paid', 400));
     }
 
     /**
-     * Both series share one axis, so a month settled beyond what it owed still
-     * has to fit inside the plot.
+     * Every bar shares one scale, so a bill settled beyond what it owed still
+     * has to fit.
      */
-    public function test_the_peak_takes_the_taller_of_the_two_series(): void
+    public function test_the_peak_takes_the_larger_of_due_and_paid(): void
     {
         $user = User::factory()->create();
         $bill = Bill::factory()->for($user)->dueOn('2026-08-05')->create(['amount' => 300]);
@@ -230,7 +237,7 @@ class DashboardTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('dashboard'))
+            ->get(route('dashboard', ['month' => '2026-08']))
             ->assertInertia(fn ($page) => $page->where('bills.peak', 800));
     }
 
@@ -243,8 +250,10 @@ class DashboardTest extends TestCase
         Bill::factory()->for($stranger)->dueOn('2026-08-01')->create(['amount' => 9999]);
 
         $this->actingAs($user)
-            ->get(route('dashboard'))
-            ->assertInertia(fn ($page) => $page->where('bills.points.7.due', 200));
+            ->get(route('dashboard', ['month' => '2026-08']))
+            ->assertInertia(fn ($page) => $page
+                ->has('bills.bills', 1)
+                ->where('bills.due', 200));
     }
 
     /**
