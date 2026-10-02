@@ -49,7 +49,6 @@ class LumpSumPaymentController extends Controller
             $request->selectedBills(),
             $request->selectedLoans(),
             (float) $request->validated('amount'),
-            $month,
             CarbonImmutable::parse((string) $request->validated('date')),
         );
 
@@ -74,24 +73,23 @@ class LumpSumPaymentController extends Controller
     {
         $user = $request->user();
 
-        // A bill that has not started yet owes nothing, so it is no more
-        // payable than a settled one — same rule the bills list applies.
+        // This month's bills only — the same ones the bills list shows.
         $bills = $user->bills()
-            ->startedBy($month)
-            ->with(['payments' => fn ($query) => $query->forMonth($month)])
+            ->dueIn($month)
+            ->with('payments')
             ->get()
-            ->filter(fn (Bill $bill): bool => $bill->remainingIn($month) > 0.0)
+            ->filter(fn (Bill $bill): bool => $bill->remaining() > 0.0)
             ->map(fn (Bill $bill): array => [
                 'type' => 'bill',
                 'id' => $bill->id,
                 'name' => $bill->name,
                 'detail' => $bill->category->label(),
-                'due_date' => $bill->dueDateIn($month)->toDateString(),
+                'due_date' => $bill->due_date->toDateString(),
                 'has_due_date' => true,
-                'due_now' => $bill->remainingIn($month),
-                // A bill's month cannot be more than settled, so what it owes
-                // now and in total are the same number.
-                'outstanding' => $bill->remainingIn($month),
+                'due_now' => $bill->remaining(),
+                // A bill cannot be more than settled, so what it owes now and
+                // in total are the same number.
+                'outstanding' => $bill->remaining(),
             ]);
 
         $loans = $user->loans()

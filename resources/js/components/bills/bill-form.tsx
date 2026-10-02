@@ -20,14 +20,12 @@ import type { Bill, CategoryOption, PaymentMethodOption } from '@/types';
 import type { RouteFormDefinition } from '@/wayfinder';
 
 /**
- * Create (when [bill] is omitted) or edit a recurring bill. One shared form
- * keeps the two flows consistent — the same arrangement as `ExpenseForm`, and
- * the only difference between them is where it posts to.
+ * Create (when [bill] is omitted) or edit a bill. One shared form keeps the
+ * two flows consistent — the same arrangement as `ExpenseForm`, and the only
+ * difference between them is where it posts to.
  *
- * The due date is when the bill *first* falls due, not a one-off: it recurs on
- * that day every month afterwards, and the months before it do not owe it at
- * all. The note under the field says so, since a date input on its own reads
- * like a single occurrence.
+ * A bill is for one month only — the month its due date falls in — since the
+ * amount changes from month to month. Next month's gets its own bill.
  */
 export function BillForm({
     formProps,
@@ -35,15 +33,18 @@ export function BillForm({
     categories,
     paymentMethods,
     submitLabel,
+    defaultDueDate,
 }: {
     formProps: RouteFormDefinition<'post'>;
     bill?: Bill;
+    /** Where a new bill's due date starts — the month it is being added to. */
+    defaultDueDate?: string;
     categories: CategoryOption[];
     paymentMethods: PaymentMethodOption[];
     submitLabel: string;
 }) {
     // Bills default to the Bills category rather than the first one, since
-    // that is what a fixed monthly expense almost always is.
+    // that is what a bill almost always is.
     const [category, setCategory] = useState(bill?.category ?? 'bills');
 
     return (
@@ -87,26 +88,23 @@ export function BillForm({
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="due_date">First due date</Label>
+                        <Label htmlFor="due_date">Due date</Label>
 
-                        {/* Seeded from the bill's own `due_date`, never from
-                            `due_on` — that one clamps to short months, and
-                            would move a bill due on the 31st to the 28th the
-                            first time it was saved from a February. */}
                         <Input
                             id="due_date"
                             name="due_date"
                             type="date"
                             required
-                            defaultValue={bill?.due_date ?? todayIso()}
+                            defaultValue={
+                                bill?.due_date ?? defaultDueDate ?? todayIso()
+                            }
                             disabled={processing}
                         />
 
                         <p className="text-sm text-muted-foreground">
-                            When this is first due. It then repeats on the same
-                            day every month, and months before this date do not
-                            owe it. A month too short for the day uses its last,
-                            making the 31st a way to say “the end of the month”.
+                            The bill belongs to the month this date falls in.
+                            Add next month’s as its own bill, with its own
+                            amount.
                         </p>
 
                         <InputError message={errors.due_date} />

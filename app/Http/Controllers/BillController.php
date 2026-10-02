@@ -25,13 +25,14 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Fixed Monthly Expenses: the bills that fall due every month, and whether
- * this month's have been paid.
+ * Monthly bills: what falls due in a month, and whether it has been paid.
+ *
+ * Each bill belongs to the one month its due date falls in — amounts change
+ * from month to month, so next month's electricity is its own bill. The list
+ * is browsed a month at a time through `?month=YYYY-MM`.
  *
  * A bill stores no paid/unpaid state. Paying one writes an expense pointing
- * back at it, so "paid" is a question about the expenses table, asked one
- * month at a time — which is why every action here is month-scoped through
- * `?month=YYYY-MM`.
+ * back at it, so "paid" is a question about the expenses table.
  */
 class BillController extends Controller
 {
@@ -39,21 +40,14 @@ class BillController extends Controller
     {
         $month = MonthInput::fromRequest($request);
 
-        // Bills that have not started yet are left out entirely: a bill first
-        // due next September is not something this August owes, so it should
-        // not show up here or in the month's total.
-        //
-        // The payments are constrained to the month up front, so the list costs
-        // two queries regardless of how many bills or how long they have run.
-        // Sorted after presenting rather than in SQL: the order that matters is
-        // the day this bill falls due *in the month being viewed*, which no
-        // index can answer, and a person's bills are few enough to sort here.
+        // Only the bills due in this month. Payments are eager loaded, so the
+        // list costs two queries however many bills there are.
         $bills = $request->user()
             ->bills()
-            ->startedBy($month)
-            ->with(['payments' => fn ($query) => $query->forMonth($month)])
+            ->dueIn($month)
+            ->with('payments')
             ->get()
-            ->map(fn (Bill $bill): array => $this->present($bill, $month))
+            ->map(fn (Bill $bill): array => $this->present($bill))
             ->sortBy(fn (array $bill): array => [$bill['due_on'], $bill['name']])
             ->values()
             ->all();
@@ -66,9 +60,12 @@ class BillController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
         return Inertia::render('bills/create', [
+            // New bills default to the month being viewed, so adding one from
+            // September's list lands it in September.
+            'month' => MonthInput::fromRequest($request)->format('Y-m'),
             'categories' => ExpenseCategory::options(),
             'paymentMethods' => PaymentMethod::options(),
         ]);
@@ -76,19 +73,20 @@ class BillController extends Controller
 
     public function store(StoreBillRequest $request, CreateBill $createBill): RedirectResponse
     {
-        $createBill->handle($request->user(), $request->validated());
+        $bill = $createBill->handle($request->user(), $request->validated());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Bill added.')]);
 
-        return to_route('bills.index');
+        // Back to the month the bill landed in, so it is there on the list.
+        return to_route('bills.index', ['month' => $bill->month()->format('Y-m')]);
     }
 
-    public function edit(Request $request, Bill $bill): Response
+    public function edit(Bill $bill): Response
     {
         Gate::authorize('update', $bill);
 
         return Inertia::render('bills/edit', [
-            'bill' => $this->present($bill, MonthInput::fromRequest($request)),
+            'bill' => $this->present($bill),
             'categories' => ExpenseCategory::options(),
             'paymentMethods' => PaymentMethod::options(),
         ]);
@@ -102,7 +100,7 @@ class BillController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Bill updated.')]);
 
-        return to_route('bills.index');
+        return to_route('bills.index', ['month' => $bill->month()->format('Y-m')]);
     }
 
     public function destroy(Bill $bill, DeleteBill $deleteBill): RedirectResponse
@@ -117,8 +115,8 @@ class BillController extends Controller
     }
 
     /**
-     * Put money towards this month's bill, which is what writes the expense.
-     * With no amount it clears whatever is left; with one it pays part.
+     * Put money towards a bill, which is what writes the expense. With no
+     * amount it clears whatever is left; with one it pays part.
      */
     public function pay(StoreBillPaymentRequest $request, Bill $bill, PayBill $payBill): RedirectResponse
     {
@@ -126,11 +124,7 @@ class BillController extends Controller
 
         $amount = $request->validated('amount');
 
-        $payBill->handle(
-            $bill,
-            MonthInput::fromRequest($request),
-            $amount === null ? null : (float) $amount,
-        );
+        $payBill->handle($bill, $amount === null ? null : (float) $amount);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Payment recorded.')]);
 
@@ -139,13 +133,13 @@ class BillController extends Controller
 
     /**
      * Take the last payment back, deleting the expense it wrote. One step at a
-     * time, so a month settled twice does not lose both.
+     * time, so a bill settled twice does not lose both.
      */
-    public function unpay(Request $request, Bill $bill, UnpayBill $unpayBill): RedirectResponse
+    public function unpay(Bill $bill, UnpayBill $unpayBill): RedirectResponse
     {
         Gate::authorize('update', $bill);
 
-        $unpayBill->handle($bill, MonthInput::fromRequest($request));
+        $unpayBill->handle($bill);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Payment undone.')]);
 
@@ -164,7 +158,6 @@ class BillController extends Controller
         $written = $allocate->handle(
             $request->selectedBills(),
             (float) $request->validated('amount'),
-            MonthInput::fromRequest($request),
         );
 
         Inertia::flash('toast', [
@@ -184,26 +177,17 @@ class BillController extends Controller
      * model serialization) so the front-end type in `types/bills.ts` has a
      * contract it can trust.
      *
-     * The two dates here answer different questions and both are needed.
-     * `due_date` is when the bill first falls due — what the form edits, and
-     * the only one the user ever chose. `due_on` is when it falls due in the
-     * month being viewed, which is what the list shows.
-     *
-     * The form must never be seeded from `due_on`: it clamps to short months,
-     * so a bill starting on the 31st would be quietly moved to the 28th the
-     * first time it was saved from a February.
-     *
-     * `due_on`, `status`, `paid_amount` and `remaining` are answers about one
-     * month, so a presented bill only means anything alongside the month it
-     * came from.
+     * `due_date` and `due_on` are the same date: a bill falls due once. Both
+     * are kept so the form (which edits `due_date`) and the list (which shows
+     * `due_on`) keep reading the field they always have.
      *
      * @return array{id: int, name: string, amount: float, due_date: string, due_on: string, category: string, payment_method: string, notes: string|null, status: string, paid_amount: float, remaining: float}
      */
-    private function present(Bill $bill, CarbonImmutable $month): array
+    private function present(Bill $bill): array
     {
-        $dueOn = $bill->dueDateIn($month);
-        $paid = $bill->paidIn($month);
-        $remaining = $bill->remainingIn($month);
+        $dueOn = $bill->due_date;
+        $paid = $bill->paid();
+        $remaining = $bill->remaining();
 
         return [
             'id' => $bill->id,
@@ -215,8 +199,8 @@ class BillController extends Controller
             'payment_method' => $bill->payment_method->value,
             'notes' => $bill->notes,
             'status' => $this->status($dueOn, $paid, $remaining)->value,
-            // What was actually paid this month, across however many payments
-            // it took. Not the bill's amount, which may have been edited since.
+            // What was actually paid, across however many payments it took.
+            // Not the bill's amount, which may have been edited since.
             'paid_amount' => $paid,
             'remaining' => $remaining,
         ];
@@ -224,8 +208,7 @@ class BillController extends Controller
 
     /**
      * Overdue outranks part paid: being behind is the thing worth saying, and
-     * the amount beside it shows by how much. A future month is never overdue,
-     * however long ago the bill was set up.
+     * the amount beside it shows by how much.
      */
     private function status(CarbonImmutable $dueOn, float $paid, float $remaining): BillStatus
     {
@@ -238,7 +221,7 @@ class BillController extends Controller
     }
 
     /**
-     * What the month costs in fixed expenses, and how much of it is settled.
+     * What the month's bills come to, and how much of it is settled.
      *
      * @param  array<int, array{amount: float, status: string, paid_amount: float, remaining: float}>  $bills
      * @return array{month: string, month_label: string, previous_month: string, next_month: string, count: int, paid_count: int, total: float, paid_total: float, remaining: float}

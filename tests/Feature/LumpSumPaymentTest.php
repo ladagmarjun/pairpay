@@ -104,9 +104,9 @@ class LumpSumPaymentTest extends TestCase
 
         // Water (5th) ₱600, then the loan (10th) ₱2,000, then electricity
         // (20th) takes the remaining ₱400 of its ₱900.
-        $this->assertSame(600.0, $water->paidIn($month));
+        $this->assertSame(600.0, $water->paid());
         $this->assertSame(2000.0, $loan->fresh()->paidTotal());
-        $this->assertSame(400.0, $electricity->paidIn($month));
+        $this->assertSame(400.0, $electricity->paid());
     }
 
     /**
@@ -132,7 +132,7 @@ class LumpSumPaymentTest extends TestCase
 
         $month = CarbonImmutable::parse('2026-08-01');
 
-        $this->assertSame(600.0, $bill->paidIn($month));
+        $this->assertSame(600.0, $bill->paid());
         $this->assertSame(2000.0, $loan->fresh()->paidTotal(), 'One installment, not the balance.');
     }
 
@@ -161,18 +161,20 @@ class LumpSumPaymentTest extends TestCase
     }
 
     /**
-     * The month decides every bill's due date, so stepping it has to move the
-     * dates with it — this screen and the bills page must never disagree.
+     * The month decides which bills are offered, so stepping it has to change
+     * the list — this screen and the bills page must never disagree.
      */
-    public function test_the_month_steers_the_due_dates_shown(): void
+    public function test_the_month_steers_the_bills_offered(): void
     {
         $user = User::factory()->create();
-        Bill::factory()->for($user)->create(['name' => 'Rent', 'due_date' => '2026-03-25']);
+        Bill::factory()->for($user)->create(['name' => 'Rent', 'due_date' => '2026-08-25']);
+        Bill::factory()->for($user)->create(['name' => 'Rent', 'due_date' => '2026-09-25']);
 
         $this->actingAs($user)
             ->get(route('payments.create'))
             ->assertInertia(fn ($page) => $page
                 ->where('month.value', '2026-08')
+                ->has('payables', 1)
                 ->where('payables.0.due_date', '2026-08-25'));
 
         $this->actingAs($user)
@@ -180,6 +182,7 @@ class LumpSumPaymentTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->where('month.value', '2026-09')
                 ->where('month.label', 'September 2026')
+                ->has('payables', 1)
                 ->where('payables.0.due_date', '2026-09-25'));
     }
 
@@ -217,8 +220,8 @@ class LumpSumPaymentTest extends TestCase
 
         $month = CarbonImmutable::parse('2026-08-01');
 
-        $this->assertSame(600.0, $paid->paidIn($month));
-        $this->assertSame(0.0, $untouched->paidIn($month));
+        $this->assertSame(600.0, $paid->paid());
+        $this->assertSame(0.0, $untouched->paid());
     }
 
     public function test_paying_only_loans_is_fine(): void

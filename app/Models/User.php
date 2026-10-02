@@ -77,8 +77,8 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
-     * The user's recurring bills. The money they cost lives in `expenses` —
-     * this is only the set of things that fall due every month.
+     * The user's bills, one per month each is due in. The money they cost
+     * lives in `expenses` — this is only what fell due and when.
      *
      * @return HasMany<Bill, $this>
      */

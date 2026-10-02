@@ -10,7 +10,7 @@ use Illuminate\Validation\Rule;
 trait BillValidationRules
 {
     /**
-     * Rules for a recurring bill. Shared by the create and update requests so
+     * Rules for a bill. Shared by the create and update requests so
      * the two flows can never drift apart.
      *
      * @return array<string, array<int, ValidationRule|array<mixed>|string>>
@@ -20,9 +20,8 @@ trait BillValidationRules
         return [
             'name' => ['required', 'string', 'max:200'],
             'amount' => ['required', 'numeric', 'gt:0', 'max:9999999999'],
-            // When the bill first falls due. It recurs on that day monthly
-            // from then on; a month too short for the day clamps rather than
-            // being rejected, so the 31st stays usable.
+            // When the bill falls due — which also decides the one month it
+            // belongs to.
             'due_date' => ['required', 'date'],
             'category' => ['required', Rule::enum(ExpenseCategory::class)],
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)],

@@ -24,9 +24,11 @@ class BillFactory extends Factory
             'user_id' => User::factory(),
             'name' => fake()->words(2, true),
             'amount' => fake()->randomFloat(2, 100, 5000),
-            // Carbon's clock rather than Faker's relative strings, which read
-            // the real time and ignore a test's travelTo()/setTestNow().
-            'due_date' => fake()->dateTimeBetween(now()->subMonths(6), now()),
+            // Somewhere in the current month, since a bill belongs to the month
+            // it falls due in. Carbon's clock rather than Faker's relative
+            // strings, which read the real time and ignore a test's
+            // travelTo()/setTestNow().
+            'due_date' => fake()->dateTimeBetween(now()->startOfMonth(), now()->endOfMonth()),
             'category' => ExpenseCategory::Bills,
             'payment_method' => fake()->randomElement(PaymentMethod::cases()),
             'notes' => null,

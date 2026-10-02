@@ -4,7 +4,6 @@ namespace App\Actions\Bills;
 
 use App\Models\Bill;
 use App\Models\Expense;
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
@@ -26,7 +25,7 @@ class AllocateBillPayments
      * @param  Collection<int, Bill>  $bills
      * @return array<int, Expense> the payments actually written
      */
-    public function handle(Collection $bills, float $amount, CarbonImmutable $month): array
+    public function handle(Collection $bills, float $amount): array
     {
         $left = round($amount, 2);
         $written = [];
@@ -35,7 +34,7 @@ class AllocateBillPayments
         // name is folded into the key rather than passed as a second sort:
         // `sortBy` treats an array of closures as comparators, not extractors.
         $ordered = $bills->sortBy(
-            fn (Bill $bill): string => $bill->dueDateIn($month)->toDateString().'|'.$bill->name,
+            fn (Bill $bill): string => $bill->due_date->toDateString().'|'.$bill->name,
         );
 
         foreach ($ordered as $bill) {
@@ -43,13 +42,13 @@ class AllocateBillPayments
                 break;
             }
 
-            $paying = min($bill->remainingIn($month), $left);
+            $paying = min($bill->remaining(), $left);
 
             if ($paying <= 0.0) {
                 continue;
             }
 
-            $payment = $this->payBill->handle($bill, $month, $paying);
+            $payment = $this->payBill->handle($bill, $paying);
 
             if ($payment !== null) {
                 $written[] = $payment;

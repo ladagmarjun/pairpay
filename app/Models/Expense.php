@@ -61,7 +61,7 @@ class Expense extends Model
     }
 
     /**
-     * The recurring bill this expense settled, if any. Null for an expense
+     * The bill this expense settled, if any. Null for an expense
      * entered by hand, and null again once the bill it came from is deleted.
      *
      * @return BelongsTo<Bill, $this>

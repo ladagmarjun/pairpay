@@ -21,7 +21,7 @@ export default function EditBill({
             <div className="flex flex-1 flex-col gap-6 p-4">
                 <Heading
                     title="Edit bill"
-                    description="Changes apply to future months. Payments already recorded keep what they cost."
+                    description="Changes apply to this bill only. Payments already recorded keep what they cost."
                 />
 
                 <BillForm

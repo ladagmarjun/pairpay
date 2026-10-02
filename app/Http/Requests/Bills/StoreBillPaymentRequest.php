@@ -3,7 +3,6 @@
 namespace App\Http\Requests\Bills;
 
 use App\Models\Bill;
-use App\Support\MonthInput;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -42,7 +41,7 @@ class StoreBillPaymentRequest extends FormRequest
     }
 
     /**
-     * What is still owed on the month being paid.
+     * What is still owed on the bill being paid.
      */
     private function remaining(): float
     {
@@ -52,6 +51,6 @@ class StoreBillPaymentRequest extends FormRequest
             return 0.0;
         }
 
-        return $bill->remainingIn(MonthInput::fromRequest($this));
+        return $bill->remaining();
     }
 }

@@ -17,15 +17,11 @@ export type Bill = {
     name: string;
     amount: number;
     /**
-     * When the bill *first* falls due, `YYYY-MM-DD`. The date the user chose,
-     * and the one the form edits.
+     * When the bill falls due, `YYYY-MM-DD` — which also decides the one
+     * month it belongs to. The date the form edits.
      */
     due_date: string;
-    /**
-     * When it falls due in the month being viewed, `YYYY-MM-DD`. Derived from
-     * `due_date` by moving it to that month, clamped to months too short for
-     * the day — so never use it to seed the form.
-     */
+    /** The same date as `due_date`; what the list shows. */
     due_on: string;
     category: ExpenseCategoryValue;
     payment_method: PaymentMethodValue;

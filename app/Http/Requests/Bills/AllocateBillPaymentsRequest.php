@@ -50,7 +50,7 @@ class AllocateBillPaymentsRequest extends FormRequest
 
                 $owed = round(
                     $this->selectedBills()->sum(
-                        fn (Bill $bill): float => $bill->remainingIn(MonthInput::fromRequest($this))
+                        fn (Bill $bill): float => $bill->remaining()
                     ),
                     2,
                 );
@@ -66,7 +66,7 @@ class AllocateBillPaymentsRequest extends FormRequest
     }
 
     /**
-     * The bills being paid, with the month's payments already loaded so
+     * The bills being paid, with their payments already loaded so
      * working out what each still owes costs no further queries.
      *
      * @return Collection<int, Bill>
@@ -78,10 +78,10 @@ class AllocateBillPaymentsRequest extends FormRequest
         return $this->user()
             ->bills()
             ->whereIn('id', (array) $this->input('bills', []))
-            // A bill that has not started owes this month nothing, so an id
-            // posted for one is dropped rather than paid.
-            ->startedBy($month)
-            ->with(['payments' => fn ($query) => $query->forMonth($month)])
+            // Only this month's bills: an id posted for another month's bill
+            // is dropped rather than paid.
+            ->dueIn($month)
+            ->with('payments')
             ->get();
     }
 

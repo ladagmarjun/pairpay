@@ -59,7 +59,11 @@ export default function BillsIndex({
                         )}
 
                         <Button asChild>
-                            <Link href={createBill()}>
+                            <Link
+                                href={createBill({
+                                    query: { month: summary.month },
+                                })}
+                            >
                                 <Plus className="size-4" />
                                 Add bill
                             </Link>
@@ -124,11 +128,11 @@ function EmptyState() {
                     strokeWidth={1.5}
                 />
 
-                <p className="mt-4 font-medium">No bills yet</p>
+                <p className="mt-4 font-medium">No bills this month</p>
 
                 <p className="mt-1 text-sm text-muted-foreground">
-                    Add the things you pay every month — rent, power, internet —
-                    and mark them paid as they go out.
+                    Add this month’s bills — rent, power, internet — and mark
+                    them paid as they go out.
                 </p>
             </div>
         </div>

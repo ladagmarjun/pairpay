@@ -3,7 +3,6 @@
 namespace App\Actions\Bills;
 
 use App\Models\Bill;
-use Carbon\CarbonImmutable;
 
 /**
  * Undoes the last payment made towards a month — the way back from a
@@ -15,10 +14,9 @@ use Carbon\CarbonImmutable;
  */
 class UnpayBill
 {
-    public function handle(Bill $bill, CarbonImmutable $month): void
+    public function handle(Bill $bill): void
     {
         $bill->payments()
-            ->forMonth($month)
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->first()

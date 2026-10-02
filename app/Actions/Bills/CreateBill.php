@@ -7,7 +7,7 @@ use App\Models\Bill;
 use App\Models\User;
 
 /**
- * Records a new recurring bill. Writes go through an action rather than the
+ * Records a new bill. Writes go through an action rather than the
  * controller so the same logic is reachable from a console command, an import,
  * or a future API without duplicating it.
  */

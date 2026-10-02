@@ -71,7 +71,7 @@ class AllocateLumpSumRequest extends FormRequest
                 // whole loan balances here would accept money the allocation
                 // then has nowhere to put.
                 $due = round(
-                    $this->selectedBills()->sum(fn (Bill $bill): float => $bill->remainingIn($month))
+                    $this->selectedBills()->sum(fn (Bill $bill): float => $bill->remaining())
                     + $this->selectedLoans()->sum(fn (Loan $loan): float => $loan->amountDueNow()),
                     2,
                 );
@@ -96,10 +96,10 @@ class AllocateLumpSumRequest extends FormRequest
         return $this->user()
             ->bills()
             ->whereIn('id', (array) $this->input('bills', []))
-            // A bill that has not started owes this month nothing, so an id
-            // posted for one is dropped rather than paid.
-            ->startedBy($month)
-            ->with(['payments' => fn ($query) => $query->forMonth($month)])
+            // Only this month's bills: an id posted for another month's bill
+            // is dropped rather than paid.
+            ->dueIn($month)
+            ->with('payments')
             ->get();
     }
 

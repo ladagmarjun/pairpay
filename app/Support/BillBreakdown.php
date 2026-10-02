@@ -9,17 +9,12 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 /**
- * One month of fixed bills, bill by bill: what each owed, and how much of it
- * was settled — the dashboard's bills chart.
+ * One month of bills, bill by bill: what each owed, and how much of it was
+ * settled — the dashboard's bills chart.
  *
  * {@see MonthlyTrend} plots the year of spending. This stays on the single
- * month being viewed, since a bill is the same amount every month and a
- * year of near-identical columns says less than which bills are still open.
- *
- * A bill stores no history. It is a template that recurs from its first due
- * date onwards, so what a month owed is every bill that had started by then —
- * at whatever it costs *today*. `paid` is read from the expenses the payments
- * wrote, so it stays as it happened.
+ * month being viewed, since every bill belongs to exactly one month. `paid` is
+ * read from the expenses the payments wrote.
  */
 final readonly class BillBreakdown
 {
@@ -34,21 +29,20 @@ final readonly class BillBreakdown
     ) {}
 
     /**
-     * Two queries: the bills that had started by the month, and one grouped
-     * sum of what was paid against each of them within it.
+     * Two queries: the month's bills, and one grouped sum of what was paid
+     * against each of them.
      */
     public static function forUser(User $user, CarbonImmutable $month): self
     {
         $month = $month->startOfMonth();
 
-        $bills = $user->bills()->startedBy($month)->get(['id', 'name', 'amount', 'due_date']);
+        $bills = $user->bills()->dueIn($month)->get(['id', 'name', 'amount', 'due_date']);
 
         $payments = Expense::query()
             ->where('user_id', $user->id)
             // Paying a bill writes an expense carrying `bill_id`; that is the
             // only record of the payment, so it is also the only thing to sum.
             ->whereIn('bill_id', $bills->modelKeys())
-            ->forMonth($month)
             ->groupBy('bill_id')
             ->select(['bill_id', DB::raw('SUM(amount) as paid_total')])
             ->pluck('paid_total', 'bill_id');
@@ -57,7 +51,7 @@ final readonly class BillBreakdown
             ->map(fn (Bill $bill): array => [
                 'id' => $bill->id,
                 'name' => $bill->name,
-                'due_on' => $bill->dueDateIn($month)->toDateString(),
+                'due_on' => $bill->due_date->toDateString(),
                 'due' => round($bill->amount, 2),
                 'paid' => round((float) ($payments[$bill->id] ?? 0), 2),
             ])

@@ -121,7 +121,7 @@ const HIGHLIGHTS = [
     },
     {
         label: 'Bills',
-        detail: 'recurring, with what is still owed this month.',
+        detail: 'month by month, with what is still owed.',
         color: 'oklch(0.75 0.16 62)',
     },
     {

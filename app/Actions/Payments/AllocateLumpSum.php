@@ -17,12 +17,11 @@ use Illuminate\Support\Collection;
  * does it cover?" — where the electricity bill and the loan installment
  * compete for the same money and the only sensible order is by date.
  *
- * Everything here is measured in *what is due now* — a bill's remainder for the
- * month, a loan's current installment — and the money is handed out in date
+ * Everything here is measured in *what is due now* — a bill's remainder, a loan's current installment — and the money is handed out in date
  * order until it runs out.
  *
  * Nothing runs ahead. A loan takes its current installment and no more, and a
- * bill's month cannot be more than settled. Paying a debt down faster is a
+ * bill cannot be more than settled. Paying a debt down faster is a
  * different decision, made on the loan itself, and folding it in here made the
  * totals on this screen impossible to read: a ₱20,000 loan would report ₱20,000
  * owed when only ₱2,000 was actually due.
@@ -43,10 +42,9 @@ class AllocateLumpSum
         Collection $bills,
         Collection $loans,
         float $amount,
-        CarbonImmutable $month,
         CarbonImmutable $date,
     ): array {
-        $plan = $this->plan($bills, $loans, $amount, $month);
+        $plan = $this->plan($bills, $loans, $amount);
 
         $paidBills = 0;
         $paidLoans = 0;
@@ -61,7 +59,7 @@ class AllocateLumpSum
             if ($type === 'bill') {
                 $bill = $bills->firstWhere('id', (int) $id);
 
-                if ($bill !== null && $this->payBill->handle($bill, $month, $paying) !== null) {
+                if ($bill !== null && $this->payBill->handle($bill, $paying) !== null) {
                     $paidBills++;
                 }
 
@@ -91,9 +89,9 @@ class AllocateLumpSum
      * @param  Collection<int, Loan>  $loans
      * @return array<string, float> keyed `bill:{id}` / `loan:{id}`
      */
-    public function plan(Collection $bills, Collection $loans, float $amount, CarbonImmutable $month): array
+    public function plan(Collection $bills, Collection $loans, float $amount): array
     {
-        $entries = $this->entries($bills, $loans, $month);
+        $entries = $this->entries($bills, $loans);
 
         $left = round($amount, 2);
         $paying = [];
@@ -124,12 +122,12 @@ class AllocateLumpSum
      * @param  Collection<int, Loan>  $loans
      * @return array<int, array{key: string, type: string, sort: string, due_now: float}>
      */
-    private function entries(Collection $bills, Collection $loans, CarbonImmutable $month): array
+    private function entries(Collection $bills, Collection $loans): array
     {
         $entries = [];
 
         foreach ($bills as $bill) {
-            $remaining = $bill->remainingIn($month);
+            $remaining = $bill->remaining();
 
             if ($remaining <= 0.0) {
                 continue;
@@ -138,7 +136,7 @@ class AllocateLumpSum
             $entries[] = [
                 'key' => 'bill:'.$bill->id,
                 'type' => 'bill',
-                'sort' => $bill->dueDateIn($month)->toDateString().'|'.$bill->name,
+                'sort' => $bill->due_date->toDateString().'|'.$bill->name,
                 'due_now' => $remaining,
             ];
         }

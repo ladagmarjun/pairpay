@@ -5,9 +5,8 @@ import type { BillBreakdown } from '@/types';
  * The month being viewed, bill by bill: what each one owed, and how much of it
  * was settled.
  *
- * One month rather than a year. A bill costs the same every month, so twelve
- * columns of the same height said little; which bills are still open this
- * month is the question worth answering.
+ * One month rather than a year: every bill belongs to a single month, and
+ * which of this month's are still open is the question worth answering.
  *
  * Each bill is a track at its amount with the paid part filled in front of it.
  * Every track shares one scale, so a large bill reads as large beside a small

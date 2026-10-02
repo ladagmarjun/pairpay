@@ -182,31 +182,30 @@ class DashboardTest extends TestCase
     }
 
     /**
-     * A bill is a template, not a row per month: it falls due every month from
-     * the month it starts in, and in none of the ones before it.
+     * A bill belongs to the month it falls due in, and to no other.
      */
-    public function test_a_bill_is_listed_from_the_month_it_starts_in(): void
+    public function test_a_bill_is_listed_only_in_its_own_month(): void
     {
         $user = User::factory()->create();
 
         Bill::factory()->for($user)->dueOn('2026-07-20')->create(['amount' => 1500]);
 
         $this->actingAs($user)
-            ->get(route('dashboard', ['month' => '2026-06']))
+            ->get(route('dashboard', ['month' => '2026-08']))
             ->assertInertia(fn ($page) => $page->has('bills.bills', 0)->where('bills.due', 0));
 
         $this->actingAs($user)
-            ->get(route('dashboard', ['month' => '2026-08']))
+            ->get(route('dashboard', ['month' => '2026-07']))
             ->assertInertia(fn ($page) => $page
                 ->has('bills.bills', 1)
                 ->where('bills.bills.0.due', 1500)
-                ->where('bills.bills.0.due_on', '2026-08-20'));
+                ->where('bills.bills.0.due_on', '2026-07-20'));
     }
 
-    public function test_paid_counts_only_that_bills_payments_in_the_month(): void
+    public function test_paid_counts_only_the_bills_own_payments(): void
     {
         $user = User::factory()->create();
-        $bill = Bill::factory()->for($user)->dueOn('2026-07-05')->create(['amount' => 1000]);
+        $bill = Bill::factory()->for($user)->dueOn('2026-08-05')->create(['amount' => 1000]);
 
         Expense::factory()->for($user)->create([
             'bill_id' => $bill->id,
@@ -214,13 +213,8 @@ class DashboardTest extends TestCase
             'date' => '2026-08-05',
         ]);
 
-        // July's payment belongs to July, and groceries are spend, not a bill
-        // payment — neither shows against August's bill.
-        Expense::factory()->for($user)->create([
-            'bill_id' => $bill->id,
-            'amount' => 1000,
-            'date' => '2026-07-05',
-        ]);
+        // Groceries are spend, not a bill payment, so they do not show
+        // against the bill.
         Expense::factory()->for($user)->create(['amount' => 900, 'date' => '2026-08-06']);
 
         $this->actingAs($user)

@@ -33,7 +33,7 @@ export function DeleteBillDialog({
                     <DialogTitle>Delete bill?</DialogTitle>
 
                     <DialogDescription>
-                        “{bill?.name}” will stop appearing each month. The
+                        “{bill?.name}” will be removed from this month. The
                         expenses you already recorded for it are kept.
                     </DialogDescription>
                 </DialogHeader>

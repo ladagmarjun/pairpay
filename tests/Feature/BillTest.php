@@ -58,7 +58,8 @@ class BillTest extends TestCase
             'notes' => '   ',
         ]);
 
-        $response->assertRedirect(route('bills.index'));
+        // Back to the month the bill landed in.
+        $response->assertRedirect(route('bills.index', ['month' => '2026-08']));
 
         $bill = $user->bills()->sole();
 
@@ -101,7 +102,7 @@ class BillTest extends TestCase
                 'name' => 'Internet',
                 'amount' => '999.00',
             ]))
-            ->assertRedirect(route('bills.index'));
+            ->assertRedirect(route('bills.index', ['month' => '2026-08']));
 
         $bill->refresh();
 
@@ -192,25 +193,38 @@ class BillTest extends TestCase
     }
 
     /**
-     * Paying August must not mark September paid — every question a bill
-     * answers is about one month.
+     * A bill belongs to the one month it falls due in — amounts change month
+     * to month, so it does not carry on into the next one.
      */
-    public function test_paying_one_month_leaves_the_others_unpaid(): void
+    public function test_a_bill_does_not_carry_into_the_next_month(): void
     {
         $user = User::factory()->create();
-        $bill = Bill::factory()->for($user)->create(['due_date' => '2026-08-10']);
-
-        $this->actingAs($user)->post(route('bills.pay', ['bill' => $bill, 'month' => '2026-08']));
+        Bill::factory()->for($user)->create(['amount' => 1200, 'due_date' => '2026-08-10']);
 
         $this->actingAs($user)
             ->get(route('bills.index', ['month' => '2026-09']))
             ->assertInertia(fn ($page) => $page
-                ->where('bills.0.status', 'upcoming')
-                ->where('bills.0.paid_amount', 0));
+                ->has('bills', 0)
+                ->where('summary.total', 0));
+    }
+
+    /**
+     * Each month's bill keeps its own amount, so next month's electricity can
+     * cost something different from this month's.
+     */
+    public function test_each_month_has_its_own_amount(): void
+    {
+        $user = User::factory()->create();
+        Bill::factory()->for($user)->create(['name' => 'Electricity', 'amount' => 1800, 'due_date' => '2026-08-15']);
+        Bill::factory()->for($user)->create(['name' => 'Electricity', 'amount' => 2350, 'due_date' => '2026-09-15']);
 
         $this->actingAs($user)
             ->get(route('bills.index', ['month' => '2026-08']))
-            ->assertInertia(fn ($page) => $page->where('bills.0.status', 'paid'));
+            ->assertInertia(fn ($page) => $page->has('bills', 1)->where('summary.total', 1800));
+
+        $this->actingAs($user)
+            ->get(route('bills.index', ['month' => '2026-09']))
+            ->assertInertia(fn ($page) => $page->has('bills', 1)->where('summary.total', 2350));
     }
 
     public function test_an_unpaid_bill_past_its_due_date_is_overdue(): void
@@ -226,17 +240,17 @@ class BillTest extends TestCase
     }
 
     /**
-     * A due day of 31 has to mean "the end of the month" in a month that has
-     * no 31st, rather than spilling into the next one.
+     * The payment is dated on the bill's due day, so paying late still counts
+     * towards the bill's own month.
      */
-    public function test_a_due_day_longer_than_the_month_clamps_to_its_last_day(): void
+    public function test_a_late_payment_is_dated_on_the_bills_due_day(): void
     {
         $user = User::factory()->create();
-        $bill = Bill::factory()->for($user)->dueOn('2026-01-31')->create();
+        $bill = Bill::factory()->for($user)->dueOn('2026-07-31')->create();
 
-        $this->actingAs($user)->post(route('bills.pay', ['bill' => $bill, 'month' => '2026-02']));
+        $this->actingAs($user)->post(route('bills.pay', $bill));
 
-        $this->assertSame('2026-02-28', $user->expenses()->sole()->date->toDateString());
+        $this->assertSame('2026-07-31', $user->expenses()->sole()->date->toDateString());
     }
 
     public function test_the_summary_counts_what_is_still_owed_this_month(): void
@@ -416,8 +430,8 @@ class BillTest extends TestCase
             ])
             ->assertRedirect();
 
-        $this->assertSame(600.0, $water->paidIn(CarbonImmutable::parse('2026-08-01')));
-        $this->assertSame(500.0, $electricity->paidIn(CarbonImmutable::parse('2026-08-01')));
+        $this->assertSame(600.0, $water->paid());
+        $this->assertSame(500.0, $electricity->paid());
 
         $this->actingAs($user)
             ->get(route('bills.index'))
@@ -457,8 +471,8 @@ class BillTest extends TestCase
 
         $month = CarbonImmutable::parse('2026-08-01');
 
-        $this->assertSame(600.0, $water->paidIn($month));
-        $this->assertSame(0.0, $electricity->paidIn($month));
+        $this->assertSame(600.0, $water->paid());
+        $this->assertSame(0.0, $electricity->paid());
     }
 
     public function test_a_lump_sum_cannot_reach_another_users_bills(): void
@@ -477,16 +491,13 @@ class BillTest extends TestCase
     }
 
     /**
-     * The edit form and the list must show the same date. They did not: the
-     * form was handed the stored anchor (the month the bill was set up in)
-     * while the list showed the day resolved against the month in view, so a
-     * bill created in March read "Aug 25" in the list and "25 March" in the
-     * form.
+     * The edit form and the list show the same date — the one the bill was
+     * given.
      */
     public function test_the_edit_form_shows_the_same_date_as_the_list(): void
     {
         $user = User::factory()->create();
-        $bill = Bill::factory()->for($user)->create(['due_date' => '2026-03-25']);
+        $bill = Bill::factory()->for($user)->create(['due_date' => '2026-08-25']);
 
         $this->actingAs($user)
             ->get(route('bills.index'))
@@ -494,12 +505,14 @@ class BillTest extends TestCase
 
         $this->actingAs($user)
             ->get(route('bills.edit', $bill))
-            ->assertInertia(fn ($page) => $page->where('bill.due_on', '2026-08-25'));
+            ->assertInertia(fn ($page) => $page
+                ->where('bill.due_date', '2026-08-25')
+                ->where('bill.due_on', '2026-08-25'));
     }
 
     /**
-     * A bill set up to start later does not belong to the months before it,
-     * and must not be counted in their totals either.
+     * A bill due later does not belong to the months before it, and must not
+     * be counted in their totals either.
      */
     public function test_a_bill_does_not_appear_before_the_month_it_starts_in(): void
     {
@@ -520,7 +533,7 @@ class BillTest extends TestCase
     }
 
     /**
-     * The month a bill starts in owes it, even when it starts partway through.
+     * A bill belongs to its month even when it falls due on the last day.
      */
     public function test_a_bill_appears_in_the_month_it_starts_in(): void
     {
@@ -530,38 +543,6 @@ class BillTest extends TestCase
         $this->actingAs($user)
             ->get(route('bills.index', ['month' => '2026-08']))
             ->assertInertia(fn ($page) => $page->where('bills.0.due_on', '2026-08-31'));
-    }
-
-    /**
-     * The form edits the date the user chose, so it must show that date and
-     * not the month it is being viewed from. Seeding it from `due_on` would
-     * move a bill starting on the 31st to the 28th the first time it was
-     * saved from a February.
-     */
-    public function test_the_edit_form_shows_the_date_the_bill_was_given(): void
-    {
-        $user = User::factory()->create();
-        $bill = Bill::factory()->for($user)->dueOn('2026-01-31')->create();
-
-        $this->actingAs($user)
-            ->get(route('bills.edit', ['bill' => $bill, 'month' => '2026-02']))
-            ->assertInertia(fn ($page) => $page
-                ->where('bill.due_date', '2026-01-31')
-                ->where('bill.due_on', '2026-02-28'));
-    }
-
-    /**
-     * Editing from another month opens on that month, so the two never
-     * disagree wherever you came from.
-     */
-    public function test_the_edit_form_follows_the_month_it_was_opened_from(): void
-    {
-        $user = User::factory()->create();
-        $bill = Bill::factory()->for($user)->create(['due_date' => '2026-03-25']);
-
-        $this->actingAs($user)
-            ->get(route('bills.edit', ['bill' => $bill, 'month' => '2026-11']))
-            ->assertInertia(fn ($page) => $page->where('bill.due_on', '2026-11-25'));
     }
 
     /**

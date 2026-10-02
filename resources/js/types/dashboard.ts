@@ -29,7 +29,7 @@ export type BillBreakdownItem = {
     name: string;
     /** `YYYY-MM-DD` — the day it falls due within this month. */
     due_on: string;
-    /** What the bill costs today. */
+    /** What the bill costs. */
     due: number;
     /** What the payments towards it in this month came to. */
     paid: number;
@@ -41,7 +41,7 @@ export type BillBreakdown = {
     month: string;
     /** `August 2026`. */
     label: string;
-    /** Every bill that had started by this month, in due-day order. */
+    /** Every bill due in this month, in due-day order. */
     bills: BillBreakdownItem[];
     due: number;
     paid: number;
