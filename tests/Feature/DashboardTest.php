@@ -19,10 +19,21 @@ use Tests\TestCase;
  *
  * The months the year has not reached yet are drawn empty rather than filled
  * in, so a chart never shows a figure that has not happened.
+ *
+ * Which months those are depends on today, so the clock is pinned to
+ * mid-August 2026: January through August have happened, September through
+ * December have not.
  */
 class DashboardTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->travelTo('2026-08-19 12:00:00');
+    }
 
     public function test_the_dashboard_charts_the_calendar_year(): void
     {
